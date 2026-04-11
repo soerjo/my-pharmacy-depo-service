@@ -146,7 +146,7 @@ export class AuthService {
 
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
-    const resetUrl = `${frontendUrl}/auth/reset-password?token=${encodeURIComponent(resetToken)}`;
+    const resetUrl = `${frontendUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
 
     await this.emailService.sendMail({
       to: email,
@@ -155,7 +155,15 @@ export class AuthService {
       context: { resetUrl },
     });
 
-    return { message: 'If the email exists, a reset link will be sent' };
+    await this.usersRepository.update(user.id, { forgotPasswordRequest: true });
+
+    // return { message: 'If the email exists, a reset link will be sent' };
+    return {
+      to: email,
+      subject: 'Reset your password',
+      template: 'forgot-password',
+      context: { resetUrl },
+    };
   }
 
   async resetPassword(token: string, newPassword: string) {
@@ -167,12 +175,12 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException('Invalid or expired reset token');
     }
-    const user = await this.usersRepository.findByEmail(payload.email);
+    const user = await this.usersRepository.findUserRequestForgotPassword(payload.email);
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException('User not request forgot password');
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await this.usersRepository.updatePassword(user.id, hashedPassword);
+    await this.usersRepository.updateForgotPasswordReq(user.id, hashedPassword);
     return { message: 'Password reset successfully' };
   }
 }

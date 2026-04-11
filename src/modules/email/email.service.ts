@@ -49,7 +49,7 @@ export class EmailService {
       this.logger.error(
         `Failed to send email to ${options.to}: ${error instanceof Error ? error.message : String(error)}`,
       );
-      throw error;
+      // throw error; // just for developemtn comment it!
     }
   }
 

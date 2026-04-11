@@ -42,6 +42,10 @@ export class UsersRepository {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
+  async findUserRequestForgotPassword(email: string) {
+    return this.prisma.user.findUnique({ where: { email: email, forgotPasswordRequest: true } });
+  }
+
   async create(data: {
     email: string;
     password: string;
@@ -87,5 +91,15 @@ export class UsersRepository {
         updatedAt: true,
       },
     });
+  }
+
+  async updateForgotPasswordReq(id: string, hashedPassword: string) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { 
+        password: hashedPassword,
+        forgotPasswordRequest: false,
+      }
+    })
   }
 }
