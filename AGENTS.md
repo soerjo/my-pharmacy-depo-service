@@ -1,166 +1,202 @@
-# Agent Guidelines for NestJS Template
+# AGENTS.md
 
-This file contains guidelines for agentic coding agents working in this NestJS codebase.
+## Commands
 
-## Build, Lint, and Test Commands
+- `npm run build` — nest build (output to `dist/`, cleared each build)
+- `npm run start:dev` — dev server with watch (port 3000, overridable via `PORT` env)
+- `npm run lint` — eslint with auto-fix (flat config at `eslint.config.mjs`)
+- `npm run test` — unit tests (jest, `src/**/*.spec.ts`)
+- `npm run test:e2e` — e2e tests (jest, `test/**/*.e2e-spec.ts`, config at `test/jest-e2e.json`)
+- `npm run format` — prettier on `src/` and `test/`
+- `npm run test:cov` — coverage output to `coverage/`
+- `npx prisma generate` — regenerate Prisma client after schema changes
+- `npx prisma migrate dev` — create and apply a migration (dev)
+- `npx prisma migrate deploy` — apply pending migrations (prod)
 
-### Development Commands
+Run a single test file: `npx jest src/path/to/file.spec.ts`
+Run a single e2e test: `npx jest --config ./test/jest-e2e.json test/app.e2e-spec.ts`
 
-- `npm run start:dev` - Start server in watch mode
-- `npm run start:debug` - Start with debugging enabled
-- `npm run build` - Build the application for production
-- `npm run start:prod` - Run production build
+No typecheck script is defined; use `npx tsc --noEmit` to typecheck.
 
-### Code Quality
+## Key facts
 
-- `npm run lint` - Run ESLint and auto-fix issues
-- `npm run format` - Format code with Prettier
+- NestJS v11, Express adapter, single app (no monorepo)
+- TypeScript with `module: "nodenext"`, target `ES2023`, `noImplicitAny: false`, `strictNullChecks: true`
+- ESLint uses `projectService: true` (type-aware linting) — typecheck errors can surface as lint errors
+- ESLint rule overrides: `@typescript-eslint/no-explicit-any` is off, `no-floating-promises` and `no-unsafe-argument` are warn
+- Prettier: single quotes, trailing commas
+- All imports use `.js` extensions (required by `nodenext` module resolution)
+- Jest v30 (both unit and e2e)
 
-### Testing Commands
-
-- `npm run test` - Run all unit tests
-- `npm run test:watch` - Run tests in watch mode
-- `npm run test:cov` - Run tests with coverage report
-- `npm run test:e2e` - Run end-to-end tests
-- **Single test**: `npm run test -- --testNamePattern="TestName"` or `npm run test path/to/test.spec.ts`
-
-### Database Commands
-
-- `npm run migration:run` - Run pending migrations
-- `npm run migration:generate -- --name=migration_name` - Generate new migration
-- `npm run migration:create -- --name=migration_name` - Create blank migration
-- `npm run migration:revert` - Revert last migration
-
-## Project Structure
+## Architecture
 
 ```
 src/
-├── common/           # Shared utilities, guards, interceptors, decorators
-├── config/           # Configuration files
-├── modules/          # Feature modules (controllers, services, entities, DTOs)
-├── utils/            # Utility functions
-├── main.ts           # Application entry point
-└── main.module.ts    # Root module
+  main.ts                  # Bootstrap, global pipes/filters/interceptors, Swagger setup
+  app.module.ts            # Root module, global guards (Throttler, JWT, Roles)
+  config/
+    env.validation.ts      # class-validator startup validation for env vars
+    logger.config.ts       # Winston logger config (console transport, NestJS-like format)
+  prisma/
+    prisma.module.ts       # @Global() PrismaModule
+    prisma.service.ts      # PrismaService (OnModuleInit/OnModuleDestroy lifecycle)
+  common/
+    constants/index.ts     # ROLES = { ADMIN, USER } (defined but unused — roles are hardcoded strings)
+    decorators/
+      current-user.decorator.ts   # @CurrentUser() / @CurrentUser('id')
+      public.decorator.ts         # @Public() — bypasses JwtAuthGuard
+      roles.decorator.ts          # @Roles('ADMIN') — restricts by role
+    dto/
+      base-response.dto.ts        # Shared response DTO (defined but unused)
+      pagination.dto.ts           # page/limit query DTO (defined but unused)
+    filters/
+      all-exceptions.filter.ts    # Global exception filter
+    guards/
+      jwt-auth.guard.ts           # Global JWT auth guard (respects @Public)
+      roles.guard.ts              # Global roles guard (queries userOrganization table for role names)
+    interceptors/
+      response-transform.interceptor.ts  # Wraps all responses in { statusCode, message, data, timestamp, path }
+    interfaces/
+      auth-user.interface.ts      # { id: string; email: string }
+      jwt-payload.interface.ts    # { sub: string; email: string }
+  modules/
+    auth/                         # Register, login (local strategy), JWT strategy, refresh
+      strategies/
+        local.strategy.ts         # Validates email/password via AuthService -> UsersRepository
+        jwt.strategy.ts           # Verifies Bearer token, calls AuthService.validateUserById
+      local-auth.guard.ts         # Non-global, used only on POST /auth/login
+    users/                        # CRUD (admin-guarded) + GET /me profile
+    organizations/                # CRUD (admin-guarded) + GET /slug/:slug (public)
+    roles/                        # CRUD (admin-guarded)
+    user-organizations/           # CRUD (admin-guarded) — junction table: user + org + role
+    health/                       # Terminus health check with Prisma indicator
 ```
 
-## Code Style Guidelines
+## Database schema (PostgreSQL via Prisma v6)
 
-### Import Organization
+- **User** — id (UUID), email (unique), password, firstName?, lastName?, isActive (default true), timestamps
+- **Role** — id (UUID), name (unique), timestamps
+- **Organization** — id (UUID), name, slug (unique), description?, website?, logoUrl?, timestamps
+- **UserOrganization** — id (UUID), userId (FK), organizationId (FK), roleId (FK), timestamps; composite unique on `[userId, organizationId]`; cascade deletes on all FKs
+- No enums in schema — roles are string-based
+- No soft deletes implemented (isActive field exists on User but is never checked)
 
-1. External libraries (nestjs/common, express, etc.)
-2. Internal imports (@/modules/..., @/common/...)
-3. Relative imports (./..., ../...)
-4. Type-only imports: `import type { User } from './user.entity'`
+## Routes
 
-### Naming Conventions
+All routes under global prefix `/api`. Total: 23 routes (4 public, 19 JWT-protected, 16 admin-gated).
 
-- **Files**: kebab-case (example.controller.ts, auth.service.ts)
-- **Classes**: PascalCase (ExampleController, AuthService)
-- **Methods/Variables**: camelCase (findAll, getUserById)
-- **Constants**: UPPER_SNAKE_CASE (MAX_LIMIT, DEFAULT_PAGE_SIZE)
-- **Entities**: PascalCase with Entity suffix if needed (User, Product)
+### Auth (`/api/auth`)
 
-### TypeScript Configuration
+| Method | Path        | Auth                    | Description                                                 |
+| ------ | ----------- | ----------------------- | ----------------------------------------------------------- |
+| POST   | `/register` | Public                  | Register new user                                           |
+| POST   | `/login`    | Public + LocalAuthGuard | Login, returns `{ accessToken, refreshToken }`              |
+| POST   | `/refresh`  | JWT                     | Refresh tokens, returns new `{ accessToken, refreshToken }` |
 
-- No explicit function return types required (`@typescript-eslint/explicit-function-return-type: off`)
-- No explicit module boundary types (`@typescript-eslint/explicit-module-boundary-types: off`)
-- `any` type allowed (`@typescript-eslint/no-explicit-any: off`)
-- Strict null checks disabled
+### Users (`/api/users`)
 
-### ESLint Rules
+| Method | Path   | Auth  | Description            |
+| ------ | ------ | ----- | ---------------------- |
+| GET    | `/me`  | JWT   | Current user's profile |
+| GET    | `/`    | ADMIN | List all users         |
+| GET    | `/:id` | ADMIN | Get user by ID         |
+| PATCH  | `/:id` | ADMIN | Update user by ID      |
+| DELETE | `/:id` | ADMIN | Delete user by ID      |
 
-- Interface name prefix disabled
-- Prettier integration enabled
-- Node and Jest environments supported
+### Organizations (`/api/organizations`)
 
-### Prettier Configuration
+| Method | Path          | Auth   | Description               |
+| ------ | ------------- | ------ | ------------------------- |
+| GET    | `/`           | ADMIN  | List all organizations    |
+| GET    | `/:id`        | ADMIN  | Get organization by ID    |
+| GET    | `/slug/:slug` | Public | Get organization by slug  |
+| POST   | `/`           | ADMIN  | Create organization       |
+| PATCH  | `/:id`        | ADMIN  | Update organization by ID |
+| DELETE | `/:id`        | ADMIN  | Delete organization by ID |
 
-- Single quotes
-- Trailing commas: all
-- Print width: 120 characters
+### Roles (`/api/roles`)
 
-## NestJS Patterns
+| Method | Path   | Auth  | Description       |
+| ------ | ------ | ----- | ----------------- |
+| GET    | `/`    | ADMIN | List all roles    |
+| GET    | `/:id` | ADMIN | Get role by ID    |
+| POST   | `/`    | ADMIN | Create role       |
+| PATCH  | `/:id` | ADMIN | Update role by ID |
+| DELETE | `/:id` | ADMIN | Delete role by ID |
 
-### Module Structure
+### User-Organizations (`/api/user-organizations`)
 
-Each feature module should contain:
+| Method | Path                            | Auth  | Description                  |
+| ------ | ------------------------------- | ----- | ---------------------------- |
+| GET    | `/`                             | ADMIN | List all assignments         |
+| GET    | `/user/:userId`                 | ADMIN | Org memberships for a user   |
+| GET    | `/organization/:organizationId` | ADMIN | Users in an organization     |
+| GET    | `/:id`                          | ADMIN | Get assignment by ID         |
+| POST   | `/`                             | ADMIN | Assign user to org with role |
+| PATCH  | `/:id`                          | ADMIN | Update assignment            |
+| DELETE | `/:id`                          | ADMIN | Remove assignment            |
 
-- `module.ts` - Module definition with imports/exports
-- `controller.ts` - HTTP request handlers
-- `service.ts` - Business logic
-- `entity.ts` - Database model (extends MainEntityAbstract)
-- `dto/` - Data transfer objects
-  - `create-{resource}.dto.ts`
-  - `update-{resource}.dto.ts`
-- `test/` - Unit tests
-  - `{resource}.service.spec.ts`
-  - `{resource}.controller.spec.ts`
+### Health (`/api/health`)
 
-### Entity Guidelines
+| Method | Path | Auth   | Description     |
+| ------ | ---- | ------ | --------------- |
+| GET    | `/`  | Public | DB health check |
 
-- Extend `MainEntityAbstract` for common fields (id, created_at, updated_at, etc.)
-- Use `@Exclude()` decorator for sensitive fields
-- Use TypeORM decorators (`@Column`, `@CreateDateColumn`, etc.)
+## Request processing pipeline
 
-### DTO Guidelines
+1. Winston logger (replaces NestJS default)
+2. Global prefix `/api`
+3. CORS enabled (all origins — default settings)
+4. Global `ValidationPipe` — whitelist, forbidNonWhitelisted, transform, enableImplicitConversion
+5. Global guards: ThrottlerGuard (10 req/60s) → JwtAuthGuard (respects `@Public()`) → RolesGuard (queries DB for role names across all user's org memberships)
+6. `AllExceptionsFilter` — normalizes all errors to `{ statusCode, message, errors?, timestamp, path }`
+7. `ResponseTransformInterceptor` — wraps success to `{ statusCode, message: "Success", data, timestamp, path }`
 
-- Use class-validator decorators for validation
-- Use class-transformer decorators for transformation
-- Use Swagger decorators for API documentation
-- Extend `PaginationDto` for list endpoints
+## Authentication
 
-### Controller Guidelines
+- **Login**: Passport local strategy validates email/password against DB (bcrypt, 10 salt rounds)
+- **JWT**: `passport-jwt` verifies Bearer token signed with `JWT_ACCESS_SECRET`; `JwtStrategy.validate()` confirms user still exists in DB
+- **RolesGuard**: queries `prisma.userOrganization` for the authenticated user's role names across ALL organizations — a user who is ADMIN in any org is ADMIN everywhere
+- **Refresh**: `POST /auth/refresh` requires valid access token; returns new token pair. Incoming refresh token is NOT validated (only access token is checked)
+- **Token payload**: `{ sub: user.id, email: user.email }` (see `JwtPayload` interface)
 
-- Use dependency injection for services
-- Apply appropriate decorators (@Get, @Post, @Put, @Delete)
-- Use DTOs for request/response validation
-- Apply guards for authentication/authorization
+## Environment variables
 
-### Service Guidelines
+| Variable                 | Required | Default       | Description                       |
+| ------------------------ | -------- | ------------- | --------------------------------- |
+| `NODE_ENV`               | No       | `development` | development \| production \| test |
+| `PORT`                   | No       | `3000`        | Server port                       |
+| `DATABASE_URL`           | Yes      | —             | PostgreSQL connection string      |
+| `JWT_ACCESS_SECRET`      | Yes      | —             | Signs access tokens               |
+| `JWT_REFRESH_SECRET`     | Yes      | —             | Signs refresh tokens              |
+| `JWT_ACCESS_EXPIRATION`  | No       | `15m`         | Access token expiry               |
+| `JWT_REFRESH_EXPIRATION` | No       | `7d`          | Refresh token expiry              |
 
-- Mark with @Injectable()
-- Use async/await for database operations
-- Handle errors appropriately
-- Use transactions when needed (typeorm-transactional)
+## Module pattern
 
-### Error Handling
+All business modules follow a 3-layer pattern:
 
-- Use NestJS built-in exceptions (BadRequestException, UnauthorizedException, etc.)
-- Apply global exception interceptors
-- Use ValidationPipe with whitelist and transform options
+- **Controller** — HTTP handling, decorators (`@ApiTags`, `@Roles`, `@Public`)
+- **Service** — thin business logic, delegates to repository
+- **Repository** — direct Prisma queries, throws `NotFoundException` on missing entities
+- **DTOs** — Create DTO with `class-validator` + Swagger decorators; Update DTO via `PartialType(CreateDto)`
 
-### Authentication & Authorization
+## Code conventions
 
-- JWT-based authentication using JwtAuthGuard
-- Role-based access control using RoleGuard
-- Custom decorators for user extraction (@JwtPayload) and roles (@Role)
+- Password fields are destructured out before returning user objects
+- Update methods cast DTOs to `{ [key: string]: unknown }` before passing to repository
+- All Swagger DTOs use `@ApiProperty`/`@ApiPropertyOptional` with example values
+- Swagger UI at `/docs` (no global prefix), bearer auth configured
 
-### Database Patterns
+## Known issues / technical debt
 
-- Use TypeORM with PostgreSQL
-- Repository pattern or query builder
-- Soft deletes enabled via MainEntityAbstract
-- Migration-based schema changes
-
-### Testing Guidelines
-
-- Use Jest testing framework
-- Mock external dependencies
-- Test both happy paths and error cases
-- Follow naming convention: `{resource}.service.spec.ts`
-- Use TestingModule for dependency injection setup
-
-### API Documentation
-
-- Use Swagger decorators (@ApiProperty, @ApiOperation)
-- Global API prefix: `/api`
-- Swagger UI available at: `/:v/docs`
-- Bearer authentication enabled
-
-### Configuration Management
-
-- Use @nestjs/config for environment variables
-- Separate config files in `src/config/`
-- Type-safe configuration using ConfigService
-
-This template follows NestJS best practices and provides a solid foundation for building scalable backend applications.
+- **No unit tests** — zero `.spec.ts` files; only 1 e2e test (health endpoint)
+- **E2E test mismatch** — test setup doesn't apply `AllExceptionsFilter` or `ResponseTransformInterceptor`, so response shape differs from production
+- **Unused code**: `ROLES` constants, `BaseResponseDto`, `PaginationDto` are defined but never used
+- **`CreateRoleDto.organizationId`** is silently dropped — `RolesRepository.create()` only passes `{ name }`
+- **`User.isActive`** is never checked in login, JWT strategy, or guards
+- **Token expiry parsing** strips non-digits from strings like `"15m"` → `15`, which may be interpreted as 15 seconds
+- **No refresh token verification** — the refresh endpoint only validates the access token
+- **No helmet middleware** — no security headers configured
+- **CORS allows all origins** — security concern for production
+- **Role scoping issue** — roles are global (unique name), not per-organization, despite the junction table design
