@@ -1,9 +1,0 @@
-export enum SegmentEnum {
-  ANAK = 'ANAK',
-  YOUTH = 'YOUTH',
-  MAHASISWA = 'MAHASISWA',
-  KARYAWAN = 'KARYAWAN',
-  PROFESIONAL = 'PROFESIONAL',
-  FAMILY = 'FAMILY',
-  SENIOR = 'SENIOR',
-}

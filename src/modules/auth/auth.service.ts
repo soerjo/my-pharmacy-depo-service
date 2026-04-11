@@ -81,9 +81,15 @@ export class AuthService {
       accessToken: this.jwtService.sign(payload),
       refreshToken: this.jwtService.sign(payload, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET')!,
-        expiresIn: Number(this.configService
-          .get<string>('JWT_REFRESH_EXPIRATION')!
-          .replace(/\D/g, '') as unknown as number) * 60 * 60 * 24,
+        expiresIn:
+          Number(
+            this.configService
+              .get<string>('JWT_REFRESH_EXPIRATION')!
+              .replace(/\D/g, '') as unknown as number,
+          ) *
+          60 *
+          60 *
+          24,
       }),
     };
   }

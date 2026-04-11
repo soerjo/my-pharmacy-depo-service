@@ -9,7 +9,7 @@ import {
   HttpStatus,
   Res,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import type { AuthUser } from '../../common/interfaces/auth-user.interface.js';
 import { AuthService } from './auth.service.js';

@@ -1,56 +1,32 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
+const userOrgSelect = {
+  userOrganizations: {
+    select: {
+      id: true,
+      userId: true,
+      roleId: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
+} as const;
+
 @Injectable()
 export class OrganizationsRepository {
   constructor(private prisma: PrismaService) {}
 
   async findAll() {
     return this.prisma.organization.findMany({
-      include: {
-        // roles: {
-        //   select: {
-        //     id: true,
-        //     name: true,
-        //     createdAt: true,
-        //     updatedAt: true,
-        //   },
-        // },
-        userOrganizations: {
-          select: {
-            id: true,
-            userId: true,
-            roleId: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-      },
+      include: userOrgSelect,
     });
   }
 
   async findBySlug(slug: string) {
     const organization = await this.prisma.organization.findUnique({
       where: { slug },
-      include: {
-        // roles: {
-        //   select: {
-        //     id: true,
-        //     name: true,
-        //     createdAt: true,
-        //     updatedAt: true,
-        //   },
-        // },
-        userOrganizations: {
-          select: {
-            id: true,
-            userId: true,
-            roleId: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-      },
+      include: userOrgSelect,
     });
     if (!organization) {
       throw new NotFoundException(`Organization with slug ${slug} not found`);
@@ -61,25 +37,7 @@ export class OrganizationsRepository {
   async findById(id: string) {
     const organization = await this.prisma.organization.findUnique({
       where: { id },
-      include: {
-        // roles: {
-        //   select: {
-        //     id: true,
-        //     name: true,
-        //     createdAt: true,
-        //     updatedAt: true,
-        //   },
-        // },
-        userOrganizations: {
-          select: {
-            id: true,
-            userId: true,
-            roleId: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-      },
+      include: userOrgSelect,
     });
     if (!organization) {
       throw new NotFoundException(`Organization with id ${id} not found`);
@@ -96,25 +54,7 @@ export class OrganizationsRepository {
   }) {
     return this.prisma.organization.create({
       data,
-      include: {
-        // roles: {
-        //   select: {
-        //     id: true,
-        //     name: true,
-        //     createdAt: true,
-        //     updatedAt: true,
-        //   },
-        // },
-        userOrganizations: {
-          select: {
-            id: true,
-            userId: true,
-            roleId: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-      },
+      include: userOrgSelect,
     });
   }
 
@@ -123,25 +63,7 @@ export class OrganizationsRepository {
     return this.prisma.organization.update({
       where: { id },
       data,
-      include: {
-        // roles: {
-        //   select: {
-        //     id: true,
-        //     name: true,
-        //     createdAt: true,
-        //     updatedAt: true,
-        //   },
-        // },
-        userOrganizations: {
-          select: {
-            id: true,
-            userId: true,
-            roleId: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-      },
+      include: userOrgSelect,
     });
   }
 
