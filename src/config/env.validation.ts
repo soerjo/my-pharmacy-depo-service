@@ -31,49 +31,8 @@ class EnvironmentVariables {
   JWT_ACCESS_SECRET!: string;
 
   @IsString()
-  @IsNotEmpty()
-  JWT_REFRESH_SECRET!: string;
-
-  @IsString()
   @IsOptional()
   JWT_ACCESS_EXPIRATION: string = '15m';
-
-  @IsString()
-  @IsOptional()
-  JWT_REFRESH_EXPIRATION: string = '7d';
-
-  @IsString()
-  @IsNotEmpty()
-  GOOGLE_CLIENT_ID!: string;
-
-  @IsString()
-  @IsNotEmpty()
-  GOOGLE_CLIENT_SECRET!: string;
-
-  @IsString()
-  @IsOptional()
-  GOOGLE_CALLBACK_URL: string =
-    'http://localhost:3000/api/auth/google/callback';
-
-  @IsString()
-  @IsOptional()
-  SMTP_HOST: string = 'localhost';
-
-  @IsPort()
-  @IsOptional()
-  SMTP_PORT: string = '587';
-
-  @IsString()
-  @IsOptional()
-  SMTP_USER: string = '';
-
-  @IsString()
-  @IsOptional()
-  SMTP_PASS: string = '';
-
-  @IsString()
-  @IsOptional()
-  SMTP_FROM: string = 'noreply@example.com';
 
   @IsString()
   @IsOptional()
