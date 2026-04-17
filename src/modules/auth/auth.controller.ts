@@ -1,13 +1,15 @@
 import { Controller, Get } from '@nestjs/common';
-import { Public } from '../../common/decorators/public.decorator.js';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { AuthService } from './auth.service.js';
 
+@ApiBearerAuth()
 @ApiTags('Auth')
 @Controller('auth')
-@Public()
 export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
   @Get('status')
   status() {
-    return { message: 'Auth module not yet implemented' };
+    return { message: 'Users module not yet implemented' };
   }
 }

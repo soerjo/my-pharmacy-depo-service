@@ -1,5 +1,7 @@
 node_modules
 dist
+bun.lock
+bunfig.json
 .env
 .env.local
 .env.*.local
@@ -21,3 +23,13 @@ coverage
 ~
 .*
 !.dockerignore
+test
+*.md
+.eslintrc.js
+eslint.config.mjs
+prettier*
+Dockerfile*
+docker-compose*.yml
+.gitignore
+vercel.json
+jest.config.js
