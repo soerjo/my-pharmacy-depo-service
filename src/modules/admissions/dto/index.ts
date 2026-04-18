@@ -22,11 +22,6 @@ export class CreateAdmissionDto {
   admissionDate: string;
 
   @ApiPropertyOptional()
-  @IsDateString()
-  @IsOptional()
-  dischargeDate?: string;
-
-  @ApiPropertyOptional()
   @IsUUID()
   @IsOptional()
   wardId?: string;
@@ -37,14 +32,19 @@ export class CreateAdmissionDto {
   diagnosis?: string;
 
   @ApiPropertyOptional()
-  @IsEnum(AdmissionStatus)
-  @IsOptional()
-  status?: AdmissionStatus;
-
-  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   notes?: string;
 }
 
-export class UpdateAdmissionDto extends PartialType(CreateAdmissionDto) {}
+export class UpdateAdmissionDto extends PartialType(CreateAdmissionDto) {
+  @ApiPropertyOptional()
+  @IsDateString()
+  @IsOptional()
+  dischargeDate?: string;
+
+  @ApiPropertyOptional()
+  @IsEnum(AdmissionStatus)
+  @IsOptional()
+  status?: AdmissionStatus;
+}

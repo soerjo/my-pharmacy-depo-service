@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PatientsService } from './patients.service.js';
 import { CreatePatientDto, UpdatePatientDto } from './dto/index.js';
 import { OrganizationId } from '../../common/decorators/organization-id.decorator.js';
+import { PaginationDto, SearchDto } from '../../common/dto/pagination.dto.js';
 
 @ApiBearerAuth()
 @ApiTags('Patients')
@@ -34,13 +35,15 @@ export class PatientsController {
   @ApiOperation({ summary: 'List patients' })
   findAll(
     @OrganizationId() organizationId: string,
+    @Query() pagination: PaginationDto,
+    @Query() searchDto: SearchDto,
     @Query('isActive') isActive?: string,
-    @Query('search') search?: string,
   ) {
     return this.patientsService.findAll(
       organizationId,
+      pagination,
       isActive === 'true' ? true : isActive === 'false' ? false : undefined,
-      search,
+      searchDto.search,
     );
   }
 

@@ -5,6 +5,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CreatePatientDto, UpdatePatientDto } from './dto/index.js';
+import {
+  PaginationDto,
+  PaginatedResponseDto,
+} from '../../common/dto/pagination.dto.js';
 
 @Injectable()
 export class PatientsService {
@@ -61,7 +65,12 @@ export class PatientsService {
     });
   }
 
-  async findAll(organizationId: string, isActive?: boolean, search?: string) {
+  async findAll(
+    organizationId: string,
+    pagination: PaginationDto,
+    isActive?: boolean,
+    search?: string,
+  ): Promise<PaginatedResponseDto<unknown>> {
     const where: Record<string, unknown> = { orgId: organizationId };
 
     if (isActive !== undefined) {
@@ -75,10 +84,30 @@ export class PatientsService {
       ];
     }
 
-    return this.prisma.patient.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-    });
+    const [data, total] = await Promise.all([
+      this.prisma.patient.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      this.prisma.patient.count({ where }),
+    ]);
+
+    const page = pagination.page ?? 1;
+    const limit = pagination.limit ?? 10;
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page * limit < total,
+        hasPrev: page > 1,
+      },
+    };
   }
 
   async findOne(id: string, organizationId: string) {

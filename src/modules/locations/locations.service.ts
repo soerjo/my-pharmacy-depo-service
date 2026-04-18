@@ -8,39 +8,83 @@ import { CreateLocationDto, UpdateLocationDto } from './dto/index.js';
 
 @Injectable()
 export class LocationsService {
+  private includeRelations = {
+    parent: true,
+    children: true,
+  } as const;
+
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateLocationDto, organizationId: string) {
-    const existing = await this.prisma.location.findUnique({
-      where: { orgId_code: { orgId: organizationId, code: dto.code } },
-    });
-    if (existing) {
-      throw new ConflictException(
-        `Location with code ${dto.code} already exists`,
-      );
-    }
+  private slugify(text: string): string {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 20);
+  }
 
-    if (dto.parentId) {
-      const parent = await this.prisma.location.findFirst({
-        where: { id: dto.parentId, orgId: organizationId },
-      });
-      if (!parent) {
-        throw new NotFoundException(
-          `Parent location with id ${dto.parentId} not found`,
-        );
+  private async generateNextCode(
+    dto: CreateLocationDto,
+    organizationId: string,
+  ): Promise<string> {
+    const prefix = `LOC-${dto.type}-${this.slugify(dto.name)}`;
+
+    const locations = await this.prisma.location.findMany({
+      where: { orgId: organizationId, code: { startsWith: `${prefix}-` } },
+      select: { code: true },
+    });
+
+    let maxNumber = 0;
+    for (const loc of locations) {
+      const suffix = loc.code.slice(prefix.length + 1);
+      const num = parseInt(suffix, 10);
+      if (!Number.isNaN(num) && num > maxNumber) {
+        maxNumber = num;
       }
     }
+
+    return `${prefix}-${String(maxNumber + 1).padStart(6, '0')}`;
+  }
+
+  private async validateParent(
+    parentId: string | undefined,
+    organizationId: string,
+  ): Promise<void> {
+    if (!parentId) return;
+
+    const parent = await this.prisma.location.findFirst({
+      where: { id: parentId, orgId: organizationId },
+    });
+    if (!parent) {
+      throw new NotFoundException(
+        `Parent location with id ${parentId} not found`,
+      );
+    }
+  }
+
+  async create(dto: CreateLocationDto, organizationId: string) {
+    const code =
+      dto.code?.trim() || (await this.generateNextCode(dto, organizationId));
+
+    const existing = await this.prisma.location.findUnique({
+      where: { orgId_code: { orgId: organizationId, code } },
+    });
+    if (existing) {
+      throw new ConflictException(`Location with code ${code} already exists`);
+    }
+
+    await this.validateParent(dto.parentId, organizationId);
 
     return this.prisma.location.create({
       data: {
         orgId: organizationId,
         name: dto.name,
-        code: dto.code,
+        code,
         type: dto.type,
         parentId: dto.parentId,
         active: dto.active,
       },
-      include: { parent: true, children: true },
+      include: this.includeRelations,
     });
   }
 
@@ -57,7 +101,7 @@ export class LocationsService {
 
     return this.prisma.location.findMany({
       where,
-      include: { parent: true, children: true },
+      include: this.includeRelations,
       orderBy: { name: 'asc' },
     });
   }
@@ -65,7 +109,7 @@ export class LocationsService {
   async findOne(id: string, organizationId: string) {
     const location = await this.prisma.location.findFirst({
       where: { id, orgId: organizationId },
-      include: { parent: true, children: true },
+      include: this.includeRelations,
     });
 
     if (!location) {
@@ -77,17 +121,7 @@ export class LocationsService {
 
   async update(id: string, dto: UpdateLocationDto, organizationId: string) {
     await this.findOne(id, organizationId);
-
-    if (dto.parentId) {
-      const parent = await this.prisma.location.findFirst({
-        where: { id: dto.parentId, orgId: organizationId },
-      });
-      if (!parent) {
-        throw new NotFoundException(
-          `Parent location with id ${dto.parentId} not found`,
-        );
-      }
-    }
+    await this.validateParent(dto.parentId, organizationId);
 
     return this.prisma.location.update({
       where: { id },
@@ -98,7 +132,7 @@ export class LocationsService {
         ...(dto.parentId !== undefined && { parentId: dto.parentId }),
         ...(dto.active !== undefined && { active: dto.active }),
       },
-      include: { parent: true, children: true },
+      include: this.includeRelations,
     });
   }
 

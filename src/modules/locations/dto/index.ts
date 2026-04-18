@@ -18,7 +18,7 @@ export class CreateLocationDto {
 
   @ApiProperty()
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   code: string;
 
   @ApiProperty()

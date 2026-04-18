@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdmissionsService } from './admissions.service.js';
 import { CreateAdmissionDto, UpdateAdmissionDto } from './dto/index.js';
 import { OrganizationId } from '../../common/decorators/organization-id.decorator.js';
+import { PaginationDto } from '../../common/dto/pagination.dto.js';
 
 @ApiBearerAuth()
 @ApiTags('Admissions')
@@ -34,10 +35,16 @@ export class AdmissionsController {
   @ApiOperation({ summary: 'List admissions' })
   findAll(
     @OrganizationId() organizationId: string,
+    @Query() pagination: PaginationDto,
     @Query('status') status?: string,
     @Query('patientId') patientId?: string,
   ) {
-    return this.admissionsService.findAll(organizationId, status, patientId);
+    return this.admissionsService.findAll(
+      organizationId,
+      pagination,
+      status,
+      patientId,
+    );
   }
 
   @Get(':id')
