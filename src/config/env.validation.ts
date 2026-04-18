@@ -37,6 +37,10 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   FRONTEND_URL: string = 'http://localhost:5173';
+
+  @IsString()
+  @IsOptional()
+  WAREHOUSE_SERVICE_URL: string = 'http://localhost:3001';
 }
 
 export function validate(config: Record<string, unknown>) {

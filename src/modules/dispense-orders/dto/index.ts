@@ -49,11 +49,6 @@ export class CreateDispenseOrderItemDto {
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
-  duration?: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
   instructions?: string;
 }
 
@@ -76,7 +71,7 @@ export class CreateDispenseOrderDto {
   @ApiPropertyOptional()
   @IsUUID()
   @IsOptional()
-  locationId?: string;
+  roomId?: string;
 
   @ApiPropertyOptional()
   @IsString()
@@ -93,6 +88,12 @@ export class CreateDispenseOrderDto {
 export class UpdateDispenseOrderDto extends PartialType(
   OmitType(CreateDispenseOrderDto, [] as const),
 ) {
+
+  @ApiProperty({ enum: DispenseType })
+  @IsOptional()
+  @IsEnum(DispenseType)
+  status: DispenseType;
+
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
@@ -132,11 +133,6 @@ export class UpdateDispenseOrderItemDto {
   @IsString()
   @IsOptional()
   frequency?: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  duration?: string;
 
   @ApiPropertyOptional()
   @IsString()

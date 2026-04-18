@@ -1,6 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { CreateAdmissionDto, UpdateAdmissionDto } from './dto/index.js';
+import {
+  CreateAdmissionDto,
+  UpdateAdmissionDto,
+  QueryAdmissionDto,
+} from './dto/index.js';
 import { AdmissionStatus } from '@prisma/client';
 import {
   PaginationDto,
@@ -10,6 +14,7 @@ import {
   AdmissionResponseDto,
   mapAdmissionResponse,
 } from './dto/admission-response.dto.js';
+import { Prisma } from '@prisma/client';
 @Injectable()
 export class AdmissionsService {
   constructor(private prisma: PrismaService) {}
@@ -47,12 +52,12 @@ export class AdmissionsService {
   ): Promise<AdmissionResponseDto> {
     const admissionNumber = await this.generateAdmissionNumber(organizationId);
 
-    if (dto.wardId) {
-      const ward = await this.prisma.location.findFirst({
-        where: { id: dto.wardId, orgId: organizationId },
+    if (dto.roomId) {
+      const room = await this.prisma.room.findFirst({
+        where: { id: dto.roomId, orgId: organizationId },
       });
-      if (!ward) {
-        throw new NotFoundException(`Ward with id ${dto.wardId} not found`);
+      if (!room) {
+        throw new NotFoundException(`Room with id ${dto.roomId} not found`);
       }
     }
 
@@ -64,40 +69,75 @@ export class AdmissionsService {
         admissionDate: dto.admissionDate
           ? new Date(dto.admissionDate)
           : new Date(),
-        wardId: dto.wardId,
+        roomId: dto.roomId,
         diagnosis: dto.diagnosis,
         status: AdmissionStatus.ADMITTED,
         notes: dto.notes,
       },
-      include: { patient: true, ward: true },
+      include: { patient: true, room: true },
     });
 
     return mapAdmissionResponse(admission);
   }
 
-  async findAll(
+  async discharge(
+    id: string,
     organizationId: string,
-    pagination: PaginationDto,
-    status?: string,
-    patientId?: string,
-  ): Promise<PaginatedResponseDto<AdmissionResponseDto>> {
-    const where: Record<string, unknown> = { orgId: organizationId };
+  ): Promise<AdmissionResponseDto> {
+    const admission = await this.findOne(id, organizationId);
 
-    if (status) {
-      where.status = status;
+    if (admission.status === AdmissionStatus.DISCHARGED) {
+      throw new NotFoundException(
+        `Admission with id ${id} is already discharged`,
+      );
     }
 
-    if (patientId) {
-      where.patientId = patientId;
+    const updatedAdmission = await this.prisma.admission.update({
+      where: { id },
+      data: {
+        dischargeDate: new Date(),
+        status: AdmissionStatus.DISCHARGED,
+      },
+      include: { patient: true, room: true },
+    });
+
+    return mapAdmissionResponse(updatedAdmission);
+  }
+
+  async findAll(
+    organizationId: string,
+    query: QueryAdmissionDto,
+  ): Promise<PaginatedResponseDto<AdmissionResponseDto>> {
+    const where: Prisma.AdmissionWhereInput = { orgId: organizationId };
+
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    if (query.startDate || query.endDate) {
+      where.admissionDate = {
+        ...(query.startDate && { gte: new Date(query.startDate) }),
+        ...(query.endDate && {
+          lt: new Date(new Date(query.endDate).getTime() + 24 * 60 * 60 * 1000),
+        }),
+      };
+    }
+
+    if (query.search) {
+      const term = query.search.trim();
+      where.OR = [
+        { admissionNumber: { contains: term, mode: 'insensitive' } },
+        { patient: { name: { contains: term, mode: 'insensitive' } } },
+      ];
     }
 
     const [data, total] = await Promise.all([
       this.prisma.admission.findMany({
         where,
-        include: { patient: true, ward: true },
+        include: { patient: true, room: true },
         orderBy: { admissionDate: 'desc' },
-        skip: pagination.skip,
-        take: pagination.take,
+        skip: query.skip,
+        take: query.take,
       }),
       this.prisma.admission.count({ where }),
     ]);
@@ -105,7 +145,7 @@ export class AdmissionsService {
     return PaginatedResponseDto.create(
       data.map(mapAdmissionResponse),
       total,
-      pagination,
+      query,
     );
   }
 
@@ -115,7 +155,7 @@ export class AdmissionsService {
   ): Promise<AdmissionResponseDto> {
     const admission = await this.prisma.admission.findFirst({
       where: { id, orgId: organizationId },
-      include: { patient: true, ward: true },
+      include: { patient: true, room: true },
     });
 
     if (!admission) {
@@ -132,12 +172,12 @@ export class AdmissionsService {
   ): Promise<AdmissionResponseDto> {
     await this.findOne(id, organizationId);
 
-    if (dto.wardId) {
-      const ward = await this.prisma.location.findFirst({
-        where: { id: dto.wardId, orgId: organizationId },
+    if (dto.roomId) {
+      const room = await this.prisma.room.findFirst({
+        where: { id: dto.roomId, orgId: organizationId },
       });
-      if (!ward) {
-        throw new NotFoundException(`Ward with id ${dto.wardId} not found`);
+      if (!room) {
+        throw new NotFoundException(`Room with id ${dto.roomId} not found`);
       }
     }
 
@@ -150,14 +190,14 @@ export class AdmissionsService {
         ...(dto.dischargeDate !== undefined && {
           dischargeDate: dto.dischargeDate ? new Date(dto.dischargeDate) : null,
         }),
-        ...(dto.wardId !== undefined && {
-          wardId: dto.wardId,
+        ...(dto.roomId !== undefined && {
+          roomId: dto.roomId,
         }),
         ...(dto.diagnosis !== undefined && { diagnosis: dto.diagnosis }),
         ...(dto.status !== undefined && { status: dto.status }),
         ...(dto.notes !== undefined && { notes: dto.notes }),
       },
-      include: { patient: true, ward: true },
+      include: { patient: true, room: true },
     });
 
     return mapAdmissionResponse(admission);

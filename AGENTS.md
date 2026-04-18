@@ -2,14 +2,14 @@
 
 ## Commands
 
-- `npm run build` — nest build (output to `dist/`, cleared each build)
+- `npm run build` — nest build (output to `dist/`, wiped each build)
 - `npm run start:dev` — dev server with watch (port 3000, overridable via `PORT` env)
 - `npm run lint` — eslint with auto-fix (flat config at `eslint.config.mjs`)
-- `npm run test` — unit tests (jest, `src/**/*.spec.ts`)
-- `npm run test:e2e` — e2e tests (jest, `test/**/*.e2e-spec.ts`, config at `test/jest-e2e.json`)
+- `npm run test` — unit tests (jest, config in `jest.config.js`)
+- `npm run test:e2e` — e2e tests (jest, config at `test/jest-e2e.json`)
 - `npm run format` — prettier on `src/` and `test/`
 - `npm run test:cov` — coverage output to `coverage/`
-- `npx tsc --noEmit` — typecheck (no script defined)
+- `npx tsc --noEmit` — typecheck (no npm script defined)
 - `npx jest src/path/to/file.spec.ts` — run single unit test
 - `npx jest --config ./test/jest-e2e.json test/app.e2e-spec.ts` — run single e2e test
 - `npx prisma generate` — regenerate client after schema changes
@@ -19,8 +19,8 @@
 
 - **NestJS v11**, Express adapter, single app
 - **TypeScript**: `module: "nodenext"`, target `ES2023`, `noImplicitAny: false`, `strictNullChecks: true`
-- **All imports use `.js` extensions** (required by `nodenext` module resolution)
-- **ESLint**: flat config, `projectService: true` (type-aware). Key rules: `@typescript-eslint/no-explicit-any: off`, `no-floating-promises: warn`, `no-unsafe-argument: warn`, `prettier/prettier: error` (with `endOfLine: "auto"`)
+- **All imports must use `.js` extensions** (required by `nodenext` module resolution)
+- **ESLint**: flat config at `eslint.config.mjs`, `projectService: true` (type-aware). Key rules: `@typescript-eslint/no-explicit-any: off`, `no-floating-promises: warn`, `no-unsafe-argument: warn`, `prettier/prettier: error` (with `endOfLine: "auto"`)
 - **Prettier**: single quotes, trailing commas (`trailingComma: "all"`)
 - **Jest v30** (unit and e2e share same version)
 - **Swagger docs** served at `/docs` (bearer auth configured)
@@ -28,33 +28,55 @@
 ## Build Gotchas
 
 - `nest-cli.json` copies `src/modules/email/templates/**/*` as static assets to `dist/` on build — these templates don't exist yet
-- `deleteOutDir: true` in nest-cli means `dist/` is wiped each build
+- `deleteOutDir: true` means `dist/` is wiped each build
+- **Build order matters**: `npx prisma generate` must run before `npm run build` (Dockerfile does this)
+
+## Package Manager
+
+- **Production Docker** (`Dockerfile`): uses **npm** (`package-lock.json`, `npm ci`)
+- **Dev Docker** (`Dockerfile.dev`): uses **bun** (`bun.lock`, `bun install`)
+- **Local dev**: either works, but npm is the safer default since `package-lock.json` is the authoritative lockfile
+- `yarn.lock` and `.eslintrc.js` are leftover files from the original NestJS template — ignore them
 
 ## Prisma Schema
 
-PostgreSQL via Prisma v6 (`prisma/schema.prisma`). **Schema has no models or enums defined yet** — only datasource and generator blocks exist. Many service modules (products, batches, purchase-orders, etc.) have Prisma queries written against models that don't yet exist in the schema, so they will fail at runtime until models are added.
+PostgreSQL via Prisma v6 (`prisma/schema.prisma`). Schema defines:
 
-## Stub / Incomplete Modules
+**Enums**: `Gender`, `AdmissionStatus`, `LocationType`, `DispenseType`, `DispenseOrderStatus`
 
-These modules exist as files but are non-functional shells:
+**Models**: `Patient`, `Admission`, `Location`, `DispenseOrder`, `DispenseOrderItem`
+
+All models use `@id @default(uuid()) @db.Uuid`. Multi-tenant pattern: every model has an `orgId` field with `@@index([orgId])`.
+
+## Module Status
+
+Current modules in `src/modules/`:
+
+**Implemented** (service + controller + DTOs):
+- `patients` — CRUD for patients
+- `admissions` — CRUD for admissions, linked to patients and locations
+- `locations` — CRUD for locations (DEPOT / WARD / DEPARTMENT), self-referencing hierarchy
+- `dispense-orders` — CRUD for dispense orders, linked to patients/admissions/locations
+
+**Stub / Incomplete**:
 
 | Module               | Issue                                                |
 | -------------------- | ---------------------------------------------------- |
 | `auth`               | Service exists but **all methods are commented out** |
-| `users`              | Controller exists, **no service file**               |
-| `organizations`      | Controller exists, **no service file**               |
-| `roles`              | Controller exists, **no service file**               |
-| `user-organizations` | Controller exists, **no service file**               |
+| `users`              | Controller only, **no service file**                 |
+| `organizations`      | Controller only, **no service file**                 |
+| `roles`              | Controller only, **no service file**                 |
+| `user-organizations` | Controller only, **no service file**                 |
 | `email`              | **Empty module** (`@Module({})`)                     |
 
-**Fully implemented modules** (have service + DTOs + working Prisma queries): `health`, `unit-of-measures`, `product-categories`, `manufacturers`, `suppliers`, `warehouse-locations`, `products`, `batches`, `purchase-orders`, `inbound-shipments`, `outbound-shipments`, `transfers`, `stock-adjustments`, `formulas`, `compounding-batches`, `stock-movements`, `stock`.
+`health` module uses `@nestjs/terminus` — has controller + custom Prisma health indicator, no conventional service.
 
 ## Request Pipeline
 
 1. Winston logger (replaces NestJS default)
 2. Global prefix `/api`; Swagger at `/docs`
-3. CORS enabled (all origins)
-4. Global `ValidationPipe` — whitelist, forbidNonWhitelisted, transform, enableImplicitConversion
+3. CORS enabled (all origins, no options)
+4. Global `ValidationPipe` — **whitelist is commented out**, `forbidNonWhitelisted`, `transform`, `enableImplicitConversion`
 5. Global guards: ThrottlerGuard (10 req/60s) → JwtAuthGuard (respects `@Public()`) → RolesGuard
 6. `AllExceptionsFilter` — normalizes errors to `{ statusCode, message, errors?, timestamp, path }`
 7. `ResponseTransformInterceptor` — wraps success to `{ statusCode, message: "Success", data, timestamp, path }`
@@ -70,7 +92,7 @@ These modules exist as files but are non-functional shells:
 
 ## Environment Variables
 
-Only 6 variables are actually validated in `src/config/env.validation.ts`:
+Only 6 variables validated in `src/config/env.validation.ts`:
 
 | Variable                | Required | Default                 |
 | ----------------------- | -------- | ----------------------- |
@@ -81,8 +103,21 @@ Only 6 variables are actually validated in `src/config/env.validation.ts`:
 | `JWT_ACCESS_EXPIRATION` | No       | `15m`                   |
 | `FRONTEND_URL`          | No       | `http://localhost:5173` |
 
-Additional vars referenced in code or dependencies but **not yet validated**: `JWT_REFRESH_SECRET`, `JWT_REFRESH_EXPIRATION`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`.
+`.env.example` is the current reference. `.example.env` is stale (uses different var names like `JWT_SECRET_KEY` instead of `JWT_ACCESS_SECRET`).
+
+Additional vars referenced in code but **not yet validated**: `JWT_REFRESH_SECRET`, `JWT_REFRESH_EXPIRATION`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`.
 
 ## Testing
 
-Zero `.spec.ts` unit tests. Only e2e test: `test/app.e2e-spec.ts` (health endpoint). E2E setup does **not** apply `AllExceptionsFilter` or `ResponseTransformInterceptor`, so response shape differs from production.
+- **Zero unit tests** — no `.spec.ts` files exist under `src/`
+- Only e2e test: `test/app.e2e-spec.ts` (health endpoint)
+- Jest config is in `jest.config.js` (root), **not** in `package.json` — the `jest` block in `package.json` is stale
+- `jest.config.js` has `moduleNameMapper` for `src/` prefix alias, `setupFilesAfterEnv` pointing to `test/test-setup.ts`, and `testTimeout: 30000`
+- `test/test-setup.ts` loads dotenv and sets env vars with **stale names** (e.g., `JWT_SECRET_KEY` instead of `JWT_ACCESS_SECRET`) — may need updating before tests pass
+- E2E setup does **not** apply `AllExceptionsFilter` or `ResponseTransformInterceptor`, so response shape differs from production
+
+## Deployment
+
+- **Docker**: `Dockerfile` (production, npm-based, multi-stage build). Health check hits `/api/health`
+- **Vercel**: `vercel.json` configured to deploy `src/main.ts` via `@vercel/node`
+- `docker-compose.yml` uses a pre-built image, expects external `internal_net` network

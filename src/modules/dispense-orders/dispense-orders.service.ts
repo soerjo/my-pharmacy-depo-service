@@ -16,10 +16,14 @@ import {
   PaginationDto,
   PaginatedResponseDto,
 } from '../../common/dto/pagination.dto.js';
+import { WarehouseService } from '../warehouse/warehouse.service.js';
 
 @Injectable()
 export class DispenseOrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private warehouseService: WarehouseService,
+  ) {}
 
   private async generateOrderNumber(organizationId: string): Promise<string> {
     const today = new Date();
@@ -66,14 +70,14 @@ export class DispenseOrdersService {
     return admission;
   }
 
-  private async validateLocation(locationId: string, orgId: string) {
-    const location = await this.prisma.location.findFirst({
-      where: { id: locationId, orgId },
+  private async validateRoom(roomId: string, orgId: string) {
+    const room = await this.prisma.room.findFirst({
+      where: { id: roomId, orgId },
     });
-    if (!location) {
-      throw new NotFoundException(`Location with id ${locationId} not found`);
+    if (!room) {
+      throw new NotFoundException(`Room with id ${roomId} not found`);
     }
-    return location;
+    return room;
   }
 
   private assertEditable(order: { status: string }) {
@@ -87,11 +91,15 @@ export class DispenseOrdersService {
   private includeRelations = {
     patient: true,
     admission: true,
-    location: true,
+    room: true,
     items: { orderBy: { createdAt: 'asc' } },
   } as const;
 
-  async create(dto: CreateDispenseOrderDto, organizationId: string) {
+  async create(
+    dto: CreateDispenseOrderDto,
+    organizationId: string,
+    authToken: string,
+  ) {
     await this.validatePatient(dto.patientId, organizationId);
 
     if (dto.type === DispenseType.INPATIENT) {
@@ -102,17 +110,34 @@ export class DispenseOrdersService {
       }
       await this.validateAdmission(dto.admissionId, organizationId);
 
-      if (dto.locationId) {
-        await this.validateLocation(dto.locationId, organizationId);
+      if (dto.roomId) {
+        await this.validateRoom(dto.roomId, organizationId);
       }
     }
 
-    if (dto.locationId) {
-      await this.validateLocation(dto.locationId, organizationId);
+    if (dto.roomId) {
+      await this.validateRoom(dto.roomId, organizationId);
     }
 
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('At least one item is required');
+    }
+
+    const drugIds = dto.items.map((item) => item.drugId);
+    const products = await this.warehouseService.getProductsByIds(
+      drugIds,
+      authToken,
+    );
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
+    for (const item of dto.items) {
+      const product = productMap.get(item.drugId);
+      if (!product) {
+        throw new NotFoundException(
+          `Product with id ${item.drugId} not found in warehouse`,
+        );
+      }
+      item.drugName = product.name;
     }
 
     const orderNumber = await this.generateOrderNumber(organizationId);
@@ -124,8 +149,9 @@ export class DispenseOrdersService {
         patientId: dto.patientId,
         admissionId: dto.admissionId,
         type: dto.type,
-        locationId: dto.locationId,
+        roomId: dto.roomId,
         notes: dto.notes,
+        status: DispenseOrderStatus.PENDING,
         items: { create: dto.items },
       },
       include: this.includeRelations,
@@ -197,8 +223,8 @@ export class DispenseOrdersService {
       await this.validateAdmission(dto.admissionId, organizationId);
     }
 
-    if (dto.locationId) {
-      await this.validateLocation(dto.locationId, organizationId);
+    if (dto.roomId) {
+      await this.validateRoom(dto.roomId, organizationId);
     }
 
     if (dto.patientId) {
@@ -219,7 +245,7 @@ export class DispenseOrdersService {
 
     if (dto.type !== undefined) updateData.type = dto.type;
     if (dto.admissionId !== undefined) updateData.admissionId = dto.admissionId;
-    if (dto.locationId !== undefined) updateData.locationId = dto.locationId;
+    if (dto.roomId !== undefined) updateData.roomId = dto.roomId;
     if (dto.notes !== undefined) updateData.notes = dto.notes;
     if (dto.patientId !== undefined) updateData.patientId = dto.patientId;
 
@@ -234,20 +260,25 @@ export class DispenseOrdersService {
     orderId: string,
     dto: AddDispenseOrderItemDto,
     organizationId: string,
+    authToken: string,
   ) {
     const order = await this.findOne(orderId, organizationId);
     this.assertEditable(order);
+
+    const product = await this.warehouseService.getProductById(
+      dto.drugId,
+      authToken,
+    );
 
     return this.prisma.dispenseOrderItem.create({
       data: {
         dispenseOrderId: orderId,
         drugId: dto.drugId,
-        drugName: dto.drugName,
+        drugName: product.name,
         batchNumber: dto.batchNumber,
         quantity: dto.quantity,
         dosage: dto.dosage,
         frequency: dto.frequency,
-        duration: dto.duration,
         instructions: dto.instructions,
       },
     });
@@ -261,6 +292,13 @@ export class DispenseOrdersService {
   ) {
     const order = await this.findOne(orderId, organizationId);
     this.assertEditable(order);
+
+    const updateStatusValidation: DispenseOrderStatus[] = [DispenseOrderStatus.PENDING, DispenseOrderStatus.PREPARING];
+    if( order && !updateStatusValidation.includes(order.status)) {
+      throw new BadRequestException(
+        `Cannot modify items of an order with status ${order.status}. Only PENDING or PREPARINGorders can be edited.`,
+      );
+    }
 
     const item = await this.prisma.dispenseOrderItem.findFirst({
       where: { id: itemId, dispenseOrderId: orderId },
@@ -280,7 +318,6 @@ export class DispenseOrdersService {
     if (dto.quantity !== undefined) updateData.quantity = dto.quantity;
     if (dto.dosage !== undefined) updateData.dosage = dto.dosage;
     if (dto.frequency !== undefined) updateData.frequency = dto.frequency;
-    if (dto.duration !== undefined) updateData.duration = dto.duration;
     if (dto.instructions !== undefined)
       updateData.instructions = dto.instructions;
 

@@ -36,13 +36,13 @@ export class AdmissionResponseDto {
   notes: string | null;
 
   @ApiPropertyOptional()
-  wardId: string | null;
+  roomId: string | null;
 
   @ApiPropertyOptional()
-  wardName: string | null;
+  roomName: string | null;
 
   @ApiPropertyOptional()
-  wardTag: string | null;
+  roomCode: string | null;
 }
 
 export function mapAdmissionResponse(admission: {
@@ -54,14 +54,14 @@ export function mapAdmissionResponse(admission: {
   diagnosis: string | null;
   status: AdmissionStatus;
   notes: string | null;
-  wardId: string | null;
+  roomId: string | null;
   patient: {
     id: string;
     name: string;
     dateOfBirth: Date | null;
     mrn: string;
   } | null;
-  ward: { id: string; name: string; type: string } | null;
+  room: { id: string; name: string; code: string } | null;
 }): AdmissionResponseDto {
   return {
     id: admission.id,
@@ -79,8 +79,8 @@ export function mapAdmissionResponse(admission: {
     diagnosis: admission.diagnosis,
     status: admission.status,
     notes: admission.notes,
-    wardId: admission.ward?.id ?? null,
-    wardName: admission.ward?.name ?? null,
-    wardTag: admission.ward?.type ?? null,
+    roomId: admission.room?.id ?? null,
+    roomName: admission.room?.name ?? null,
+    roomCode: admission.room?.code ?? null,
   };
 }

@@ -18,12 +18,6 @@ enum AdmissionStatus {
   DISCHARGED
 }
 
-enum LocationType {
-  DEPOT
-  WARD
-  DEPARTMENT
-}
-
 enum DispenseType {
   INPATIENT
   OUTPATIENT
@@ -34,6 +28,13 @@ enum DispenseOrderStatus {
   PREPARING
   DISPENSED
   CANCELLED
+}
+
+enum BedStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+  CLEANED
 }
 
 model Patient {
@@ -51,7 +52,7 @@ model Patient {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  admissions    Admission[]
+  admissions     Admission[]
   dispenseOrders DispenseOrder[]
 
   @@index([orgId])
@@ -66,7 +67,7 @@ model Admission {
   admissionNumber String
   admissionDate   DateTime
   dischargeDate   DateTime?
-  wardId          String?         @db.Uuid
+  roomId          String?         @db.Uuid
   diagnosis       String?
   status          AdmissionStatus @default(ADMITTED)
   notes           String?
@@ -74,7 +75,7 @@ model Admission {
   updatedAt       DateTime        @updatedAt
 
   patient        Patient          @relation(fields: [patientId], references: [id])
-  ward           Location?        @relation(fields: [wardId], references: [id])
+  room           Room?            @relation(fields: [roomId], references: [id])
   dispenseOrders DispenseOrder[]
 
   @@index([orgId])
@@ -82,20 +83,33 @@ model Admission {
   @@unique([orgId, admissionNumber])
 }
 
-model Location {
-  id        String       @id @default(uuid()) @db.Uuid
-  orgId     String       @db.Uuid
-  name      String
-  code      String
-  type      LocationType
-  parentId  String?      @db.Uuid
-  active    Boolean      @default(true)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+model RoomCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  isIntensive Boolean  @default(false)
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  parent     Location?    @relation("LocationHierarchy", fields: [parentId], references: [id])
-  children   Location[]   @relation("LocationHierarchy")
-  admissions Admission[]
+  rooms Room[]
+
+  @@unique([name])
+}
+
+model Room {
+  id         String   @id @default(uuid()) @db.Uuid
+  orgId      String?  @db.Uuid
+  categoryId String   @db.Uuid
+  code       String
+  name       String
+  floor      String?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  category       RoomCategory    @relation(fields: [categoryId], references: [id])
+  admissions     Admission[]
   dispenseOrders DispenseOrder[]
 
   @@index([orgId])
@@ -110,7 +124,7 @@ model DispenseOrder {
   admissionId   String?             @db.Uuid
   type          DispenseType
   dispensedById String?             @db.Uuid
-  locationId    String?             @db.Uuid
+  roomId        String?             @db.Uuid
   dispensedAt   DateTime?
   notes         String?
   cancelReason  String?
@@ -120,7 +134,7 @@ model DispenseOrder {
 
   patient   Patient             @relation(fields: [patientId], references: [id])
   admission Admission?          @relation(fields: [admissionId], references: [id])
-  location  Location?           @relation(fields: [locationId], references: [id])
+  room      Room?               @relation(fields: [roomId], references: [id])
   items     DispenseOrderItem[]
 
   @@index([orgId])
@@ -140,7 +154,6 @@ model DispenseOrderItem {
   quantity        Int
   dosage          String?
   frequency       String?
-  duration        String?
   instructions    String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

@@ -63,10 +63,10 @@ export class PatientsController {
     return this.patientsService.update(id, dto, organizationId);
   }
 
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Deactivate patient' })
-  remove(@Param('id') id: string, @OrganizationId() organizationId: string) {
-    return this.patientsService.remove(id, organizationId);
-  }
+  // @Delete(':id')
+  // @HttpCode(HttpStatus.NO_CONTENT)
+  // @ApiOperation({ summary: 'Deactivate patient' })
+  // remove(@Param('id') id: string, @OrganizationId() organizationId: string) {
+  //   return this.patientsService.remove(id, organizationId);
+  // }
 }

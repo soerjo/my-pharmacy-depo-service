@@ -12,9 +12,12 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdmissionsService } from './admissions.service.js';
-import { CreateAdmissionDto, UpdateAdmissionDto } from './dto/index.js';
+import {
+  CreateAdmissionDto,
+  UpdateAdmissionDto,
+  QueryAdmissionDto,
+} from './dto/index.js';
 import { OrganizationId } from '../../common/decorators/organization-id.decorator.js';
-import { PaginationDto } from '../../common/dto/pagination.dto.js';
 
 @ApiBearerAuth()
 @ApiTags('Admissions')
@@ -31,20 +34,19 @@ export class AdmissionsController {
     return this.admissionsService.create(dto, organizationId);
   }
 
+  @Post('/discharge/:id')
+  @ApiOperation({ summary: 'Discharge patient' })
+  discharge(@Param('id') id: string, @OrganizationId() organizationId: string) {
+    return this.admissionsService.discharge(id, organizationId);
+  }
+
   @Get()
   @ApiOperation({ summary: 'List admissions' })
   findAll(
     @OrganizationId() organizationId: string,
-    @Query() pagination: PaginationDto,
-    @Query('status') status?: string,
-    @Query('patientId') patientId?: string,
+    @Query() query: QueryAdmissionDto,
   ) {
-    return this.admissionsService.findAll(
-      organizationId,
-      pagination,
-      status,
-      patientId,
-    );
+    return this.admissionsService.findAll(organizationId, query);
   }
 
   @Get(':id')
@@ -53,20 +55,20 @@ export class AdmissionsController {
     return this.admissionsService.findOne(id, organizationId);
   }
 
-  @Put(':id')
-  @ApiOperation({ summary: 'Update admission' })
-  update(
-    @Param('id') id: string,
-    @Body() dto: UpdateAdmissionDto,
-    @OrganizationId() organizationId: string,
-  ) {
-    return this.admissionsService.update(id, dto, organizationId);
-  }
+  // @Put(':id')
+  // @ApiOperation({ summary: 'Update admission' })
+  // update(
+  //   @Param('id') id: string,
+  //   @Body() dto: UpdateAdmissionDto,
+  //   @OrganizationId() organizationId: string,
+  // ) {
+  //   return this.admissionsService.update(id, dto, organizationId);
+  // }
 
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete admission' })
-  remove(@Param('id') id: string, @OrganizationId() organizationId: string) {
-    return this.admissionsService.remove(id, organizationId);
-  }
+  // @Delete(':id')
+  // @HttpCode(HttpStatus.NO_CONTENT)
+  // @ApiOperation({ summary: 'Delete admission' })
+  // remove(@Param('id') id: string, @OrganizationId() organizationId: string) {
+  //   return this.admissionsService.remove(id, organizationId);
+  // }
 }

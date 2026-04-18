@@ -8,6 +8,7 @@ import {
   Delete,
   Body,
   Query,
+  Headers,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -36,8 +37,13 @@ export class DispenseOrdersController {
   create(
     @Body() dto: CreateDispenseOrderDto,
     @OrganizationId() organizationId: string,
+    @Headers('authorization') authorization: string,
   ) {
-    return this.dispenseOrdersService.create(dto, organizationId);
+    return this.dispenseOrdersService.create(
+      dto,
+      organizationId,
+      authorization,
+    );
   }
 
   @Get()
@@ -82,8 +88,14 @@ export class DispenseOrdersController {
     @Param('id') id: string,
     @Body() dto: AddDispenseOrderItemDto,
     @OrganizationId() organizationId: string,
+    @Headers('authorization') authorization: string,
   ) {
-    return this.dispenseOrdersService.addItem(id, dto, organizationId);
+    return this.dispenseOrdersService.addItem(
+      id,
+      dto,
+      organizationId,
+      authorization,
+    );
   }
 
   @Put(':id/items/:itemId')

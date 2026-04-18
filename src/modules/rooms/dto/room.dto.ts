@@ -3,38 +3,41 @@ import {
   IsString,
   IsNotEmpty,
   IsOptional,
-  IsEnum,
-  IsBoolean,
   IsUUID,
+  IsBoolean,
 } from 'class-validator';
 import { PartialType } from '@nestjs/swagger';
-import { LocationType } from '@prisma/client';
 
-export class CreateLocationDto {
+export class CreateRoomDto {
+  @ApiProperty()
+  @IsUUID()
+  @IsNotEmpty()
+  categoryId: string;
+
+  // @ApiProperty()
+  // @IsUUID()
+  // @IsNotEmpty()
+  // classId: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  code?: string;
+
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty()
-  @IsString()
-  @IsOptional()
-  code: string;
+  // @ApiPropertyOptional()
+  // @IsString()
+  // @IsOptional()
+  // floor?: string;
+}
 
-  @ApiProperty()
-  @IsEnum(LocationType)
-  @IsNotEmpty()
-  type: LocationType;
-
-  @ApiPropertyOptional()
-  @IsUUID()
-  @IsOptional()
-  parentId?: string;
-
+export class UpdateRoomDto extends PartialType(CreateRoomDto) {
   @ApiPropertyOptional()
   @IsBoolean()
   @IsOptional()
   active?: boolean;
 }
-
-export class UpdateLocationDto extends PartialType(CreateLocationDto) {}

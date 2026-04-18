@@ -13,8 +13,9 @@ import { EmailModule } from './modules/email/email.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { PatientsModule } from './modules/patients/patients.module.js';
 import { AdmissionsModule } from './modules/admissions/admissions.module.js';
-import { LocationsModule } from './modules/locations/locations.module.js';
+import { RoomsModule } from './modules/rooms/rooms.module.js';
 import { DispenseOrdersModule } from './modules/dispense-orders/dispense-orders.module.js';
+import { WarehouseModule } from './modules/warehouse/warehouse.module.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
 import { loggerConfig } from './config/logger.config.js';
@@ -35,8 +36,9 @@ import { validate } from './config/env.validation.js';
     HealthModule,
     PatientsModule,
     AdmissionsModule,
-    LocationsModule,
+    RoomsModule,
     DispenseOrdersModule,
+    WarehouseModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
