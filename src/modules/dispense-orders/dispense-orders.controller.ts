@@ -23,6 +23,7 @@ import {
 import { OrganizationId } from '../../common/decorators/organization-id.decorator.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/interfaces/auth-user.interface.js';
+import { PaginationDto } from '../../common/dto/pagination.dto.js';
 
 @ApiBearerAuth()
 @ApiTags('Dispense Orders')
@@ -43,6 +44,7 @@ export class DispenseOrdersController {
   @ApiOperation({ summary: 'List dispense orders' })
   findAll(
     @OrganizationId() organizationId: string,
+    @Query() pagination: PaginationDto,
     @Query('status') status?: string,
     @Query('patientId') patientId?: string,
     @Query('admissionId') admissionId?: string,
@@ -50,6 +52,7 @@ export class DispenseOrdersController {
   ) {
     return this.dispenseOrdersService.findAll(
       organizationId,
+      pagination,
       status,
       patientId,
       admissionId,

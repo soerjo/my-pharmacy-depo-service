@@ -12,6 +12,10 @@ import {
   CancelDispenseOrderDto,
 } from './dto/index.js';
 import { DispenseOrderStatus, DispenseType } from '@prisma/client';
+import {
+  PaginationDto,
+  PaginatedResponseDto,
+} from '../../common/dto/pagination.dto.js';
 
 @Injectable()
 export class DispenseOrdersService {
@@ -130,11 +134,12 @@ export class DispenseOrdersService {
 
   async findAll(
     organizationId: string,
+    pagination: PaginationDto,
     status?: string,
     patientId?: string,
     admissionId?: string,
     type?: string,
-  ) {
+  ): Promise<PaginatedResponseDto<unknown>> {
     const where: Record<string, unknown> = { orgId: organizationId };
 
     if (status) {
@@ -153,11 +158,18 @@ export class DispenseOrdersService {
       where.type = type;
     }
 
-    return this.prisma.dispenseOrder.findMany({
-      where,
-      include: this.includeRelations,
-      orderBy: { createdAt: 'desc' },
-    });
+    const [data, total] = await Promise.all([
+      this.prisma.dispenseOrder.findMany({
+        where,
+        include: this.includeRelations,
+        orderBy: { createdAt: 'desc' },
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      this.prisma.dispenseOrder.count({ where }),
+    ]);
+
+    return PaginatedResponseDto.create(data, total, pagination);
   }
 
   async findOne(id: string, organizationId: string) {

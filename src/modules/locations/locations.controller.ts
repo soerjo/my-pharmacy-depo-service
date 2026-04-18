@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { LocationsService } from './locations.service.js';
 import { CreateLocationDto, UpdateLocationDto } from './dto/index.js';
 import { OrganizationId } from '../../common/decorators/organization-id.decorator.js';
+import { PaginationDto } from '../../common/dto/pagination.dto.js';
 
 @ApiBearerAuth()
 @ApiTags('Locations')
@@ -34,11 +35,13 @@ export class LocationsController {
   @ApiOperation({ summary: 'List locations' })
   findAll(
     @OrganizationId() organizationId: string,
+    @Query() pagination: PaginationDto,
     @Query('type') type?: string,
     @Query('isActive') isActive?: string,
   ) {
     return this.locationsService.findAll(
       organizationId,
+      pagination,
       type,
       isActive === 'true' ? true : isActive === 'false' ? false : undefined,
     );

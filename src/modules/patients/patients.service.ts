@@ -94,20 +94,7 @@ export class PatientsService {
       this.prisma.patient.count({ where }),
     ]);
 
-    const page = pagination.page ?? 1;
-    const limit = pagination.limit ?? 10;
-
-    return {
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-        hasNext: page * limit < total,
-        hasPrev: page > 1,
-      },
-    };
+    return PaginatedResponseDto.create(data, total, pagination);
   }
 
   async findOne(id: string, organizationId: string) {

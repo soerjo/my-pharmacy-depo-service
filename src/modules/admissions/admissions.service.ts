@@ -10,7 +10,6 @@ import {
   AdmissionResponseDto,
   mapAdmissionResponse,
 } from './dto/admission-response.dto.js';
-
 @Injectable()
 export class AdmissionsService {
   constructor(private prisma: PrismaService) {}
@@ -103,20 +102,11 @@ export class AdmissionsService {
       this.prisma.admission.count({ where }),
     ]);
 
-    const page = pagination.page ?? 1;
-    const limit = pagination.limit ?? 10;
-
-    return {
-      data: data.map(mapAdmissionResponse),
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-        hasNext: page * limit < total,
-        hasPrev: page > 1,
-      },
-    };
+    return PaginatedResponseDto.create(
+      data.map(mapAdmissionResponse),
+      total,
+      pagination,
+    );
   }
 
   async findOne(

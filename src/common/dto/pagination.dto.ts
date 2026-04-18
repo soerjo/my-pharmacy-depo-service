@@ -44,4 +44,25 @@ export class PaginatedResponseDto<T> {
     hasNext: boolean;
     hasPrev: boolean;
   };
+
+  static create<T>(
+    data: T[],
+    total: number,
+    pagination: PaginationDto,
+  ): PaginatedResponseDto<T> {
+    const page = pagination.page ?? 1;
+    const limit = pagination.limit ?? 10;
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page * limit < total,
+        hasPrev: page > 1,
+      },
+    };
+  }
 }

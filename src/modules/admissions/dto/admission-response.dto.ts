@@ -55,7 +55,12 @@ export function mapAdmissionResponse(admission: {
   status: AdmissionStatus;
   notes: string | null;
   wardId: string | null;
-  patient: { id: string; name: string; dateOfBirth: Date | null; mrn: string } | null;
+  patient: {
+    id: string;
+    name: string;
+    dateOfBirth: Date | null;
+    mrn: string;
+  } | null;
   ward: { id: string; name: string; type: string } | null;
 }): AdmissionResponseDto {
   return {
