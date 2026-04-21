@@ -196,6 +196,7 @@ export class DispenseOrdersService {
     ]);
 
     const data = rawData.map((order) => ({
+      id: order.id,
       orderNumber: order.orderNumber,
       patientId: order.patientId,
       admissionId: order.admissionId,
