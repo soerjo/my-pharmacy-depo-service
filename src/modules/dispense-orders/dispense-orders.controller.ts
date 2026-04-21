@@ -20,11 +20,11 @@ import {
   AddDispenseOrderItemDto,
   UpdateDispenseOrderItemDto,
   CancelDispenseOrderDto,
+  DispenseOrderQueryDto,
 } from './dto/index.js';
 import { OrganizationId } from '../../common/decorators/organization-id.decorator.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/interfaces/auth-user.interface.js';
-import { PaginationDto } from '../../common/dto/pagination.dto.js';
 
 @ApiBearerAuth()
 @ApiTags('Dispense Orders')
@@ -38,11 +38,13 @@ export class DispenseOrdersController {
     @Body() dto: CreateDispenseOrderDto,
     @OrganizationId() organizationId: string,
     @Headers('authorization') authorization: string,
+    @CurrentUser() user: AuthUser,
   ) {
     return this.dispenseOrdersService.create(
       dto,
       organizationId,
       authorization,
+      user.id,
     );
   }
 
@@ -50,19 +52,11 @@ export class DispenseOrdersController {
   @ApiOperation({ summary: 'List dispense orders' })
   findAll(
     @OrganizationId() organizationId: string,
-    @Query() pagination: PaginationDto,
-    @Query('status') status?: string,
-    @Query('patientId') patientId?: string,
-    @Query('admissionId') admissionId?: string,
-    @Query('type') type?: string,
+    @Query() query: DispenseOrderQueryDto,
   ) {
     return this.dispenseOrdersService.findAll(
       organizationId,
-      pagination,
-      status,
-      patientId,
-      admissionId,
-      type,
+      query,
     );
   }
 
@@ -78,59 +72,64 @@ export class DispenseOrdersController {
     @Param('id') id: string,
     @Body() dto: UpdateDispenseOrderDto,
     @OrganizationId() organizationId: string,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.dispenseOrdersService.update(id, dto, organizationId);
+    return this.dispenseOrdersService.update(id, dto, organizationId, user.id);
   }
 
-  @Post(':id/items')
-  @ApiOperation({ summary: 'Add item to dispense order (PENDING only)' })
-  addItem(
-    @Param('id') id: string,
-    @Body() dto: AddDispenseOrderItemDto,
-    @OrganizationId() organizationId: string,
-    @Headers('authorization') authorization: string,
-  ) {
-    return this.dispenseOrdersService.addItem(
-      id,
-      dto,
-      organizationId,
-      authorization,
-    );
-  }
+  // @Post(':id/items')
+  // @ApiOperation({ summary: 'Add item to dispense order (PENDING only)' })
+  // addItem(
+  //   @Param('id') id: string,
+  //   @Body() dto: AddDispenseOrderItemDto,
+  //   @OrganizationId() organizationId: string,
+  //   @Headers('authorization') authorization: string,
+  // ) {
+  //   return this.dispenseOrdersService.addItem(
+  //     id,
+  //     dto,
+  //     organizationId,
+  //     authorization,
+  //   );
+  // }
 
-  @Put(':id/items/:itemId')
-  @ApiOperation({ summary: 'Update item in dispense order (PENDING only)' })
-  updateItem(
-    @Param('id') id: string,
-    @Param('itemId') itemId: string,
-    @Body() dto: UpdateDispenseOrderItemDto,
-    @OrganizationId() organizationId: string,
-  ) {
-    return this.dispenseOrdersService.updateItem(
-      id,
-      itemId,
-      dto,
-      organizationId,
-    );
-  }
+  // @Put(':id/items/')
+  // @ApiOperation({ summary: 'Update item in dispense order (PENDING only)' })
+  // updateItem(
+  //   @Param('id') id: string,
+  //   @Body() dto: UpdateDispenseOrderItemDto,
+  //   @OrganizationId() organizationId: string,
+  //   @Headers('authorization') authorization: string,
+  // ) {
+  //   return this.dispenseOrdersService.updateItems(
+  //     id,
+  //     dto,
+  //     organizationId,
+  //     authorization,
+  //   );
+  // }
 
-  @Delete(':id/items/:itemId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove item from dispense order (PENDING only)' })
-  removeItem(
-    @Param('id') id: string,
-    @Param('itemId') itemId: string,
-    @OrganizationId() organizationId: string,
-  ) {
-    return this.dispenseOrdersService.removeItem(id, itemId, organizationId);
-  }
+  // @Delete(':id/items/:itemId')
+  // @HttpCode(HttpStatus.NO_CONTENT)
+  // @ApiOperation({ summary: 'Remove item from dispense order (PENDING only)' })
+  // removeItem(
+  //   @Param('id') id: string,
+  //   @Param('itemId') itemId: string,
+  //   @OrganizationId() organizationId: string,
+  // ) {
+  //   return this.dispenseOrdersService.removeItem(id, itemId, organizationId);
+  // }
 
   @Patch(':id/prepare')
   @ApiOperation({
     summary: 'Start preparing dispense order (PENDING → PREPARING)',
   })
-  prepare(@Param('id') id: string, @OrganizationId() organizationId: string) {
-    return this.dispenseOrdersService.startPreparation(id, organizationId);
+  prepare(
+    @Param('id') id: string,
+    @OrganizationId() organizationId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dispenseOrdersService.startPreparation(id, organizationId, user.id);
   }
 
   @Patch(':id/dispense')
@@ -151,14 +150,8 @@ export class DispenseOrdersController {
     @Param('id') id: string,
     @Body() dto: CancelDispenseOrderDto,
     @OrganizationId() organizationId: string,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.dispenseOrdersService.cancel(id, dto, organizationId);
-  }
-
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete dispense order (PENDING only)' })
-  remove(@Param('id') id: string, @OrganizationId() organizationId: string) {
-    return this.dispenseOrdersService.remove(id, organizationId);
+    return this.dispenseOrdersService.cancel(id, dto, organizationId, user.id);
   }
 }

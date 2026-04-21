@@ -10,10 +10,10 @@ import {
   AddDispenseOrderItemDto,
   UpdateDispenseOrderItemDto,
   CancelDispenseOrderDto,
+  DispenseOrderQueryDto,
 } from './dto/index.js';
-import { DispenseOrderStatus, DispenseType } from '@prisma/client';
+import { DispenseOrder, DispenseOrderItem, DispenseOrderStatus, Prisma } from '@prisma/client';
 import {
-  PaginationDto,
   PaginatedResponseDto,
 } from '../../common/dto/pagination.dto.js';
 import { WarehouseService } from '../warehouse/warehouse.service.js';
@@ -63,21 +63,12 @@ export class DispenseOrdersService {
   private async validateAdmission(admissionId: string, orgId: string) {
     const admission = await this.prisma.admission.findFirst({
       where: { id: admissionId, orgId },
+      include: { patient: true, room: true },
     });
     if (!admission) {
       throw new NotFoundException(`Admission with id ${admissionId} not found`);
     }
     return admission;
-  }
-
-  private async validateRoom(roomId: string, orgId: string) {
-    const room = await this.prisma.room.findFirst({
-      where: { id: roomId, orgId },
-    });
-    if (!room) {
-      throw new NotFoundException(`Room with id ${roomId} not found`);
-    }
-    return room;
   }
 
   private assertEditable(order: { status: string }) {
@@ -89,34 +80,38 @@ export class DispenseOrdersService {
   }
 
   private includeRelations = {
-    patient: true,
     admission: true,
-    room: true,
     items: { orderBy: { createdAt: 'asc' } },
   } as const;
+
+  async findOneDispenseOrderThisDay(admissionId: string, organizationId: string) {
+    const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+
+    return this.prisma.dispenseOrder.findFirst({
+      where: {
+        orgId: organizationId,
+        admissionId,
+        createdAt: {
+          gte: startOfDay,
+          lt: endOfDay,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 
   async create(
     dto: CreateDispenseOrderDto,
     organizationId: string,
     authToken: string,
+    userId: string,
   ) {
-    await this.validatePatient(dto.patientId, organizationId);
-
-    if (dto.type === DispenseType.INPATIENT) {
-      if (!dto.admissionId) {
-        throw new BadRequestException(
-          'admissionId is required for INPATIENT dispense orders',
-        );
-      }
-      await this.validateAdmission(dto.admissionId, organizationId);
-
-      if (dto.roomId) {
-        await this.validateRoom(dto.roomId, organizationId);
-      }
-    }
-
-    if (dto.roomId) {
-      await this.validateRoom(dto.roomId, organizationId);
+    const admission = await this.validateAdmission(dto.admissionId, organizationId);
+    const existingOrder = await this.findOneDispenseOrderThisDay(dto.admissionId, organizationId);
+    if (existingOrder) {
+      throw new BadRequestException(`A dispense order for this admission already exists today with ID ${existingOrder.id}`);
     }
 
     if (!dto.items || dto.items.length === 0) {
@@ -128,74 +123,95 @@ export class DispenseOrdersService {
       drugIds,
       authToken,
     );
-    const productMap = new Map(products.map((p) => [p.id, p]));
 
-    for (const item of dto.items) {
-      const product = productMap.get(item.drugId);
-      if (!product) {
-        throw new NotFoundException(
-          `Product with id ${item.drugId} not found in warehouse`,
-        );
-      }
-      item.drugName = product.name;
-    }
+    return this.prisma.$transaction(async (tx) => {
+      const orderNumber = await this.generateOrderNumber(organizationId);
 
-    const orderNumber = await this.generateOrderNumber(organizationId);
+      const order = await tx.dispenseOrder.create({
+        data: {
+          orgId: organizationId,
+          orderNumber,
+          patientId: admission.patientId,
+          admissionId: dto.admissionId,
+          notes: dto.notes,
+          status: DispenseOrderStatus.PENDING,
+          createdBy: userId,
+        },
+      });
 
-    return this.prisma.dispenseOrder.create({
-      data: {
-        orgId: organizationId,
-        orderNumber,
-        patientId: dto.patientId,
-        admissionId: dto.admissionId,
-        type: dto.type,
-        roomId: dto.roomId,
-        notes: dto.notes,
-        status: DispenseOrderStatus.PENDING,
-        items: { create: dto.items },
-      },
-      include: this.includeRelations,
-    });
+      const createItemMap = new Map(dto.items.map((item) => [item.drugId, item]));
+      await tx.dispenseOrderItem.createMany({
+        data: products.map((product) => {
+          const item = createItemMap.get(product.id)!;
+          return {
+            drugId: product.id,
+            quantity: item.quantity,
+            instructions: item.instructions,
+            dispenseOrderId: order.id,
+            createdBy: userId,
+          } as Prisma.DispenseOrderItemCreateManyInput;
+        })
+      });
+
+      // return tx.dispenseOrder.findFirst({
+      //   where: { id: order.id },
+      //   include: this.includeRelations,
+      // });
+    })
   }
 
   async findAll(
     organizationId: string,
-    pagination: PaginationDto,
-    status?: string,
-    patientId?: string,
-    admissionId?: string,
-    type?: string,
+    query: DispenseOrderQueryDto,
   ): Promise<PaginatedResponseDto<unknown>> {
     const where: Record<string, unknown> = { orgId: organizationId };
 
-    if (status) {
-      where.status = status;
+    if (query.status) where.status = query.status;
+    if (query.search) {
+      where.OR = [
+        { orderNumber: { contains: query.search, mode: 'insensitive' } },
+        { admission: { admissionNumber: { contains: query.search, mode: 'insensitive' } } },
+        { admission: { patient: { name: { contains: query.search, mode: 'insensitive' } } } },
+      ];
+    }
+    if (query.ids && query.ids.length > 0) {
+      where.id = { in: query.ids };
+    }
+    if (query.startDate || query.endDate) {
+      where.createdAt = {
+        ...(query.startDate && { gte: new Date(query.startDate) }),
+        ...(query.endDate && { lt: new Date(query.endDate) }),
+      };
     }
 
-    if (patientId) {
-      where.patientId = patientId;
-    }
-
-    if (admissionId) {
-      where.admissionId = admissionId;
-    }
-
-    if (type) {
-      where.type = type;
-    }
-
-    const [data, total] = await Promise.all([
+    const [rawData, total] = await Promise.all([
       this.prisma.dispenseOrder.findMany({
         where,
         include: this.includeRelations,
         orderBy: { createdAt: 'desc' },
-        skip: pagination.skip,
-        take: pagination.take,
+        skip: query.skip,
+        take: query.take,
       }),
       this.prisma.dispenseOrder.count({ where }),
     ]);
 
-    return PaginatedResponseDto.create(data, total, pagination);
+    const data = rawData.map((order) => ({
+      orderNumber: order.orderNumber,
+      patientId: order.patientId,
+      admissionId: order.admissionId,
+      dispensedAt: order.dispensedAt,
+      notes: order.notes,
+      cancelReason: order.cancelReason,
+      status: order.status,
+      createdAt: order.createdAt,
+      createdBy: order.createdBy,
+      type: order.admission?.type ?? null,
+      admissionNumber: order.admission?.admissionNumber ?? null,
+      admissionDate: order.admission?.admissionDate ?? null,
+      roomId: order.admission?.roomId ?? null,
+    }));
+
+    return PaginatedResponseDto.create(data, total, query);
   }
 
   async findOne(id: string, organizationId: string) {
@@ -215,39 +231,22 @@ export class DispenseOrdersService {
     id: string,
     dto: UpdateDispenseOrderDto,
     organizationId: string,
+    userId: string,
   ) {
     const order = await this.findOne(id, organizationId);
     this.assertEditable(order);
-
-    if (dto.admissionId) {
-      await this.validateAdmission(dto.admissionId, organizationId);
-    }
-
-    if (dto.roomId) {
-      await this.validateRoom(dto.roomId, organizationId);
-    }
-
-    if (dto.patientId) {
-      await this.validatePatient(dto.patientId, organizationId);
-    }
-
-    if (
-      dto.type === DispenseType.INPATIENT &&
-      !dto.admissionId &&
-      !order.admissionId
-    ) {
+    if(order.status !== DispenseOrderStatus.PENDING) {
       throw new BadRequestException(
-        'admissionId is required for INPATIENT dispense orders',
+        `Cannot update order with status ${order.status}. Only PENDING orders can be updated.`,
       );
     }
 
-    const updateData: Record<string, unknown> = {};
+    const updateData: Partial<DispenseOrder> = {};
+    updateData.updatedAt = new Date();
+    updateData.updatedBy = userId;
 
-    if (dto.type !== undefined) updateData.type = dto.type;
     if (dto.admissionId !== undefined) updateData.admissionId = dto.admissionId;
-    if (dto.roomId !== undefined) updateData.roomId = dto.roomId;
     if (dto.notes !== undefined) updateData.notes = dto.notes;
-    if (dto.patientId !== undefined) updateData.patientId = dto.patientId;
 
     return this.prisma.dispenseOrder.update({
       where: { id },
@@ -261,6 +260,7 @@ export class DispenseOrdersService {
     dto: AddDispenseOrderItemDto,
     organizationId: string,
     authToken: string,
+    userId: string,
   ) {
     const order = await this.findOne(orderId, organizationId);
     this.assertEditable(order);
@@ -274,57 +274,61 @@ export class DispenseOrdersService {
       data: {
         dispenseOrderId: orderId,
         drugId: dto.drugId,
-        drugName: product.name,
-        batchNumber: dto.batchNumber,
         quantity: dto.quantity,
-        dosage: dto.dosage,
-        frequency: dto.frequency,
         instructions: dto.instructions,
+        createdBy: userId,
       },
     });
   }
 
-  async updateItem(
+  async updateItems(
     orderId: string,
-    itemId: string,
     dto: UpdateDispenseOrderItemDto,
     organizationId: string,
+    authToken: string,
+    userId: string,
   ) {
     const order = await this.findOne(orderId, organizationId);
-    this.assertEditable(order);
 
     const updateStatusValidation: DispenseOrderStatus[] = [DispenseOrderStatus.PENDING, DispenseOrderStatus.PREPARING];
     if( order && !updateStatusValidation.includes(order.status)) {
       throw new BadRequestException(
-        `Cannot modify items of an order with status ${order.status}. Only PENDING or PREPARINGorders can be edited.`,
+        `Cannot modify items of an order with status ${order.status}. Only PENDING or PREPARING orders can be edited.`,
       );
     }
 
-    const item = await this.prisma.dispenseOrderItem.findFirst({
-      where: { id: itemId, dispenseOrderId: orderId },
+    const drugIds = dto.items.map((item) => item.drugId);
+    const products = await this.warehouseService.getProductsByIds(
+      drugIds,
+      authToken,
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+      tx.dispenseOrderItem.deleteMany({
+        where: { dispenseOrderId: orderId },
+      });
+
+      const createItemMap = new Map(dto.items.map((item) => [item.drugId, item]));
+      await tx.dispenseOrderItem.createMany({
+        data: products.map((product) => {
+          const item = createItemMap.get(product.id)!;
+          return {
+            drugId: product.id,
+            drugName: product.name,
+            quantity: item.quantity,
+            instructions: item.instructions,
+            dispenseOrderId: order.id,
+            createdBy: userId,
+          } as Prisma.DispenseOrderItemCreateManyInput;
+        })
+      });
+
+      return tx.dispenseOrder.findFirst({
+        where: { id: order.id },
+        include: this.includeRelations,
+      });
     });
 
-    if (!item) {
-      throw new NotFoundException(
-        `Item with id ${itemId} not found in this order`,
-      );
-    }
-
-    const updateData: Record<string, unknown> = {};
-
-    if (dto.drugId !== undefined) updateData.drugId = dto.drugId;
-    if (dto.drugName !== undefined) updateData.drugName = dto.drugName;
-    if (dto.batchNumber !== undefined) updateData.batchNumber = dto.batchNumber;
-    if (dto.quantity !== undefined) updateData.quantity = dto.quantity;
-    if (dto.dosage !== undefined) updateData.dosage = dto.dosage;
-    if (dto.frequency !== undefined) updateData.frequency = dto.frequency;
-    if (dto.instructions !== undefined)
-      updateData.instructions = dto.instructions;
-
-    return this.prisma.dispenseOrderItem.update({
-      where: { id: itemId },
-      data: updateData,
-    });
   }
 
   async removeItem(orderId: string, itemId: string, organizationId: string) {
@@ -346,7 +350,7 @@ export class DispenseOrdersService {
     });
   }
 
-  async startPreparation(orderId: string, organizationId: string) {
+  async startPreparation(orderId: string, organizationId: string, userId: string) {
     const order = await this.findOne(orderId, organizationId);
 
     if (order.status !== DispenseOrderStatus.PENDING) {
@@ -357,8 +361,8 @@ export class DispenseOrdersService {
 
     return this.prisma.dispenseOrder.update({
       where: { id: orderId },
-      data: { status: DispenseOrderStatus.PREPARING },
-      include: this.includeRelations,
+      data: { status: DispenseOrderStatus.PREPARING, updatedBy: userId, updatedAt: new Date() },
+      // include: this.includeRelations,
     });
   }
 
@@ -375,22 +379,14 @@ export class DispenseOrdersService {
       throw new BadRequestException('Cannot dispense an order with no items');
     }
 
-    for (const item of order.items) {
-      if (!item.batchNumber) {
-        throw new BadRequestException(
-          `Item "${item.drugName}" (${item.id}) must have a batchNumber assigned before dispensing`,
-        );
-      }
-    }
-
     return this.prisma.dispenseOrder.update({
       where: { id: orderId },
       data: {
         status: DispenseOrderStatus.DISPENSED,
-        dispensedById: userId,
         dispensedAt: new Date(),
+        updatedBy: userId,
       },
-      include: this.includeRelations,
+      // include: this.includeRelations,
     });
   }
 
@@ -398,6 +394,7 @@ export class DispenseOrdersService {
     orderId: string,
     dto: CancelDispenseOrderDto,
     organizationId: string,
+    userId: string,
   ) {
     const order = await this.findOne(orderId, organizationId);
 
@@ -416,17 +413,10 @@ export class DispenseOrdersService {
       data: {
         status: DispenseOrderStatus.CANCELLED,
         cancelReason: dto.reason,
+        // cancelledAt: new Date(),
+        updatedBy: userId,
       },
       include: this.includeRelations,
-    });
-  }
-
-  async remove(id: string, organizationId: string) {
-    const order = await this.findOne(id, organizationId);
-    this.assertEditable(order);
-
-    await this.prisma.dispenseOrder.delete({
-      where: { id },
     });
   }
 }

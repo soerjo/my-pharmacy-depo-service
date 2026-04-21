@@ -9,42 +9,25 @@ import {
   ValidateNested,
   IsUUID,
   Min,
+  IsBoolean,
+  IsDateString,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { PartialType, OmitType } from '@nestjs/swagger';
-import { DispenseType } from '@prisma/client';
+import { DispenseOrderStatus } from '@prisma/client';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
 
 export class CreateDispenseOrderItemDto {
   @ApiProperty()
-  @IsUUID()
+  @IsString()
   @IsNotEmpty()
   drugId: string;
 
   @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  drugName: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  batchNumber?: string;
-
-  @ApiProperty()
   @IsInt()
-  @Min(1)
+  // @Min(1)
   @IsNotEmpty()
   quantity: number;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  dosage?: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  frequency?: string;
 
   @ApiPropertyOptional()
   @IsString()
@@ -53,25 +36,10 @@ export class CreateDispenseOrderItemDto {
 }
 
 export class CreateDispenseOrderDto {
-  @ApiProperty()
-  @IsUUID()
-  @IsNotEmpty()
-  patientId: string;
-
   @ApiPropertyOptional()
   @IsUUID()
-  @IsOptional()
-  admissionId?: string;
-
-  @ApiProperty({ enum: DispenseType })
-  @IsEnum(DispenseType)
   @IsNotEmpty()
-  type: DispenseType;
-
-  @ApiPropertyOptional()
-  @IsUUID()
-  @IsOptional()
-  roomId?: string;
+  admissionId: string;
 
   @ApiPropertyOptional()
   @IsString()
@@ -89,10 +57,10 @@ export class UpdateDispenseOrderDto extends PartialType(
   OmitType(CreateDispenseOrderDto, [] as const),
 ) {
 
-  @ApiProperty({ enum: DispenseType })
+  @ApiProperty({ enum: DispenseOrderStatus })
   @IsOptional()
-  @IsEnum(DispenseType)
-  status: DispenseType;
+  @IsEnum(DispenseOrderStatus)
+  status: DispenseOrderStatus;
 
   @ApiPropertyOptional()
   @IsString()
@@ -103,41 +71,11 @@ export class UpdateDispenseOrderDto extends PartialType(
 export class AddDispenseOrderItemDto extends CreateDispenseOrderItemDto {}
 
 export class UpdateDispenseOrderItemDto {
-  @ApiPropertyOptional()
-  @IsUUID()
-  @IsOptional()
-  drugId?: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  drugName?: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  batchNumber?: string;
-
-  @ApiPropertyOptional()
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  quantity?: number;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  dosage?: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  frequency?: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  instructions?: string;
+  @ApiProperty({ type: [CreateDispenseOrderItemDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateDispenseOrderItemDto)
+  items: CreateDispenseOrderItemDto[];
 }
 
 export class CancelDispenseOrderDto {
@@ -145,4 +83,37 @@ export class CancelDispenseOrderDto {
   @IsString()
   @IsNotEmpty()
   reason: string;
+}
+
+export class DispenseOrderQueryDto extends PaginationDto {
+  @ApiPropertyOptional({ enum: DispenseOrderStatus })
+  @IsEnum(DispenseOrderStatus)
+  @IsOptional()
+  status?: DispenseOrderStatus;
+
+  @ApiPropertyOptional({ description: 'Filter from date (ISO 8601)' })
+  @IsDateString()
+  @IsOptional()
+  startDate?: string;
+
+  @ApiPropertyOptional({ description: 'Filter to date (ISO 8601)' })
+  @IsDateString()
+  @IsOptional()
+  endDate?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  search?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Comma-separated list of product IDs',
+  })
+  @Transform(({ value }) =>
+    value ? value.split(',').map((id: string) => id.trim()) : undefined,
+  )
+  @IsArray()
+  @IsOptional()
+  ids?: string[];
 }

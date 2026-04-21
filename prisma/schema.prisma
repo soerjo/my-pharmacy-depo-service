@@ -18,7 +18,7 @@ enum AdmissionStatus {
   DISCHARGED
 }
 
-enum DispenseType {
+enum AdmissionType {
   INPATIENT
   OUTPATIENT
 }
@@ -64,6 +64,7 @@ model Admission {
   id              String          @id @default(uuid()) @db.Uuid
   orgId           String          @db.Uuid
   patientId       String          @db.Uuid
+  type            AdmissionType   @default(INPATIENT)
   admissionNumber String
   admissionDate   DateTime
   dischargeDate   DateTime?
@@ -110,7 +111,6 @@ model Room {
 
   category       RoomCategory    @relation(fields: [categoryId], references: [id])
   admissions     Admission[]
-  dispenseOrders DispenseOrder[]
 
   @@index([orgId])
   @@unique([orgId, code])
@@ -122,19 +122,17 @@ model DispenseOrder {
   orderNumber   String
   patientId     String              @db.Uuid
   admissionId   String?             @db.Uuid
-  type          DispenseType
-  dispensedById String?             @db.Uuid
-  roomId        String?             @db.Uuid
   dispensedAt   DateTime?
   notes         String?
   cancelReason  String?
   status        DispenseOrderStatus @default(PENDING)
   createdAt     DateTime            @default(now())
+  createdBy     String              @db.Uuid
   updatedAt     DateTime            @updatedAt
+  updatedBy     String?             @db.Uuid
 
   patient   Patient             @relation(fields: [patientId], references: [id])
   admission Admission?          @relation(fields: [admissionId], references: [id])
-  room      Room?               @relation(fields: [roomId], references: [id])
   items     DispenseOrderItem[]
 
   @@index([orgId])
@@ -148,15 +146,13 @@ model DispenseOrder {
 model DispenseOrderItem {
   id              String    @id @default(uuid()) @db.Uuid
   dispenseOrderId String    @db.Uuid
-  drugId          String    @db.Uuid
-  drugName        String
-  batchNumber     String?
+  drugId          String    
   quantity        Int
-  dosage          String?
-  frequency       String?
   instructions    String?
   createdAt       DateTime  @default(now())
+  createdBy       String              @db.Uuid
   updatedAt       DateTime  @updatedAt
+  updatedBy       String?              @db.Uuid
 
   dispenseOrder DispenseOrder @relation(fields: [dispenseOrderId], references: [id], onDelete: Cascade)
 
