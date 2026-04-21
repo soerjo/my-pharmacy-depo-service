@@ -6,9 +6,6 @@ import { WinstonModule } from 'nest-winston';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { UsersModule } from './modules/users/users.module.js';
-import { OrganizationsModule } from './modules/organizations/organizations.module.js';
-import { RolesModule } from './modules/roles/roles.module.js';
-import { UserOrganizationsModule } from './modules/user-organizations/user-organizations.module.js';
 import { EmailModule } from './modules/email/email.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { PatientsModule } from './modules/patients/patients.module.js';
@@ -29,9 +26,6 @@ import { validate } from './config/env.validation.js';
     PrismaModule,
     AuthModule,
     UsersModule,
-    OrganizationsModule,
-    RolesModule,
-    UserOrganizationsModule,
     EmailModule,
     HealthModule,
     PatientsModule,

@@ -42,11 +42,11 @@
 
 PostgreSQL via Prisma v6 (`prisma/schema.prisma`). Schema defines:
 
-**Enums**: `Gender`, `AdmissionStatus`, `LocationType`, `DispenseType`, `DispenseOrderStatus`
+**Enums**: `Gender`, `AdmissionStatus`, `DispenseType`, `DispenseOrderStatus`, `BedStatus`
 
-**Models**: `Patient`, `Admission`, `Location`, `DispenseOrder`, `DispenseOrderItem`
+**Models**: `Patient`, `Admission`, `RoomCategory`, `Room`, `DispenseOrder`, `DispenseOrderItem`
 
-All models use `@id @default(uuid()) @db.Uuid`. Multi-tenant pattern: every model has an `orgId` field with `@@index([orgId])`.
+Multi-tenant pattern: most models have an `orgId` field with `@@index([orgId])`. Exceptions: `RoomCategory` has no `orgId` (global lookup), `DispenseOrderItem` has none (scoped via parent `DispenseOrder`). `Room.orgId` is nullable (allows shared rooms). All models use `@id @default(uuid()) @db.Uuid`.
 
 ## Module Status
 
@@ -54,9 +54,12 @@ Current modules in `src/modules/`:
 
 **Implemented** (service + controller + DTOs):
 - `patients` — CRUD for patients
-- `admissions` — CRUD for admissions, linked to patients and locations
-- `locations` — CRUD for locations (DEPOT / WARD / DEPARTMENT), self-referencing hierarchy
-- `dispense-orders` — CRUD for dispense orders, linked to patients/admissions/locations
+- `admissions` — CRUD for admissions, linked to patients and rooms
+- `rooms` — CRUD for rooms (linked to `RoomCategory`), plus separate `RoomCategoriesService` and `room-categories.controller` for room category lookup
+- `dispense-orders` — CRUD for dispense orders, linked to patients/admissions/rooms
+
+**Service-only**:
+- `warehouse` — HTTP client proxying to a separate warehouse microservice (`WAREHOUSE_SERVICE_URL`). Uses `@nestjs/axios`. No controller — consumed by other modules. Fetches product/batch info via `GET /api/products` and `GET /api/products/:id`.
 
 **Stub / Incomplete**:
 
@@ -87,12 +90,13 @@ Current modules in `src/modules/`:
 - **Guards**: `JwtAuthGuard`, `RolesGuard` (reads required roles via Reflector, always returns `true` — stub)
 - **Filters**: `AllExceptionsFilter`
 - **Interceptors**: `ResponseTransformInterceptor`
+- **DTOs**: `PaginationDto`, `PaginatedResponseDto` in `src/common/dto/`
 - **Interfaces**: `AuthUser`, `JwtPayload`
 - **PrismaModule** at `src/prisma/` — provides `PrismaService` globally
 
 ## Environment Variables
 
-Only 6 variables validated in `src/config/env.validation.ts`:
+7 variables validated in `src/config/env.validation.ts`:
 
 | Variable                | Required | Default                 |
 | ----------------------- | -------- | ----------------------- |
@@ -102,6 +106,7 @@ Only 6 variables validated in `src/config/env.validation.ts`:
 | `JWT_ACCESS_SECRET`     | Yes      | —                       |
 | `JWT_ACCESS_EXPIRATION` | No       | `15m`                   |
 | `FRONTEND_URL`          | No       | `http://localhost:5173` |
+| `WAREHOUSE_SERVICE_URL` | No       | `http://localhost:3001` |
 
 `.env.example` is the current reference. `.example.env` is stale (uses different var names like `JWT_SECRET_KEY` instead of `JWT_ACCESS_SECRET`).
 
@@ -114,7 +119,7 @@ Additional vars referenced in code but **not yet validated**: `JWT_REFRESH_SECRE
 - Jest config is in `jest.config.js` (root), **not** in `package.json` — the `jest` block in `package.json` is stale
 - `jest.config.js` has `moduleNameMapper` for `src/` prefix alias, `setupFilesAfterEnv` pointing to `test/test-setup.ts`, and `testTimeout: 30000`
 - `test/test-setup.ts` loads dotenv and sets env vars with **stale names** (e.g., `JWT_SECRET_KEY` instead of `JWT_ACCESS_SECRET`) — may need updating before tests pass
-- E2E setup does **not** apply `AllExceptionsFilter` or `ResponseTransformInterceptor`, so response shape differs from production
+- E2E test enables `whitelist: true` on its own `ValidationPipe` (differs from `main.ts` where it's commented out), and does **not** apply `AllExceptionsFilter` or `ResponseTransformInterceptor`, so response shape differs from production
 
 ## Deployment
 
