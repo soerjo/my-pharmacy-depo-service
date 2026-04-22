@@ -49,7 +49,7 @@ export class WarehouseService {
       const { data: response } = await firstValueFrom(
         this.httpService.get<
           WarehouseApiResponse<PaginatedResponse<WarehouseProduct>>
-        >(`${this.baseUrl}/api/products`, {
+        >(`${this.baseUrl}/products`, {
           params: { ids: ids.join(','), limit: ids.length },
           headers: { Authorization: authToken },
         }),
@@ -71,7 +71,7 @@ export class WarehouseService {
     try {
       const { data: response } = await firstValueFrom(
         this.httpService.get<WarehouseApiResponse<WarehouseProduct>>(
-          `${this.baseUrl}/api/products/${id}`,
+          `${this.baseUrl}/products/${id}`,
           {
             headers: { Authorization: authToken },
           },

@@ -55,7 +55,7 @@ export class DispenseOrdersService {
       where: { id: patientId, orgId },
     });
     if (!patient) {
-      throw new NotFoundException(`Patient with id ${patientId} not found`);
+      throw new BadRequestException(`Patient with id ${patientId} not found`);
     }
     return patient;
   }
@@ -66,7 +66,7 @@ export class DispenseOrdersService {
       include: { patient: true, room: true },
     });
     if (!admission) {
-      throw new NotFoundException(`Admission with id ${admissionId} not found`);
+      throw new BadRequestException(`Admission with id ${admissionId} not found`);
     }
     return admission;
   }
@@ -214,6 +214,55 @@ export class DispenseOrdersService {
 
     return PaginatedResponseDto.create(data, total, query);
   }
+  
+
+  async getDispenseOrderById(id: string, organizationId: string, authToken: string) {
+    const order = await this.findOne(id, organizationId);
+    const items = order.items?.map((item) => ({
+      id: item.id,
+      drugId: item.drugId,
+      quantity: item.quantity,
+      instructions: item.instructions,
+    })) ?? [];
+
+    const productDetailList = await this.warehouseService.getProductsByIds(
+      items.map((item) => item.drugId),
+      authToken,
+    );
+
+    return {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      patientId: order.patientId,
+      admissionId: order.admissionId,
+      dispensedAt: order.dispensedAt,
+      notes: order.notes,
+      cancelReason: order.cancelReason,
+      status: order.status,
+      createdAt: order.createdAt,
+      createdBy: order.createdBy,
+      admission_type: order.admission.type ?? null,
+      admissionNumber: order.admission.admissionNumber ?? null,
+      admissionDate: order.admission.admissionDate ?? null,
+      admissionStatus: order.admission.status ?? null,
+      admissionNotes: order.admission.notes ?? null,
+      admissionCreatedAt: order.admission.createdAt ?? null,
+      items: productDetailList.map((product) => {
+        const item = items.find((i) => i.drugId === product.id);
+        return {
+          id: item?.id,
+          drugId: product.id,
+          drugName: product.name,
+          quantity: item?.quantity,
+          instructions: item?.instructions,
+          baseUnitId: product.baseUnitId,
+          baseUnitName: product.baseUnitName,
+          baseUnitCode: product.baseUnitCode,
+          baseUnitAbbreviation: product.baseUnitAbbreviation,
+        };
+      }),
+    }
+  }
 
   async findOne(id: string, organizationId: string) {
     const order = await this.prisma.dispenseOrder.findFirst({
@@ -222,7 +271,7 @@ export class DispenseOrdersService {
     });
 
     if (!order) {
-      throw new NotFoundException(`Dispense order with id ${id} not found`);
+      throw new BadRequestException(`Dispense order with id ${id} not found`);
     }
 
     return order;
@@ -341,7 +390,7 @@ export class DispenseOrdersService {
     });
 
     if (!item) {
-      throw new NotFoundException(
+      throw new BadRequestException(
         `Item with id ${itemId} not found in this order`,
       );
     }

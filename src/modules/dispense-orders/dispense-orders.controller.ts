@@ -62,19 +62,24 @@ export class DispenseOrdersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get dispense order by ID' })
-  findOne(@Param('id') id: string, @OrganizationId() organizationId: string) {
-    return this.dispenseOrdersService.findOne(id, organizationId);
+  findOne(
+    @Param('id') id: string, 
+    @OrganizationId() organizationId: string,
+    @Headers('authorization') authorization: string,
+  ) {
+    return this.dispenseOrdersService.getDispenseOrderById(id, organizationId, authorization);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update dispense order details (PENDING only)' })
   update(
     @Param('id') id: string,
-    @Body() dto: UpdateDispenseOrderDto,
+    @Body() dto: UpdateDispenseOrderItemDto,
     @OrganizationId() organizationId: string,
+    @Headers('authorization') authorization: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.dispenseOrdersService.update(id, dto, organizationId, user.id);
+    return this.dispenseOrdersService.updateItems(id, dto, organizationId, authorization, user.id);
   }
 
   // @Post(':id/items')

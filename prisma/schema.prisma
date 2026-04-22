@@ -121,7 +121,7 @@ model DispenseOrder {
   orgId         String              @db.Uuid
   orderNumber   String
   patientId     String              @db.Uuid
-  admissionId   String?             @db.Uuid
+  admissionId   String              @db.Uuid
   dispensedAt   DateTime?
   notes         String?
   cancelReason  String?
@@ -132,7 +132,7 @@ model DispenseOrder {
   updatedBy     String?             @db.Uuid
 
   patient   Patient             @relation(fields: [patientId], references: [id])
-  admission Admission?          @relation(fields: [admissionId], references: [id])
+  admission Admission          @relation(fields: [admissionId], references: [id])
   items     DispenseOrderItem[]
 
   @@index([orgId])
