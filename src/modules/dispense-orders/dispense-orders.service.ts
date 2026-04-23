@@ -80,7 +80,7 @@ export class DispenseOrdersService {
   }
 
   private includeRelations = {
-    admission: true,
+    admission: { include: { patient: true } },
     items: { orderBy: { createdAt: 'asc' } },
   } as const;
 
@@ -93,6 +93,7 @@ export class DispenseOrdersService {
       where: {
         orgId: organizationId,
         admissionId,
+        status: { not: DispenseOrderStatus.CANCELLED },
         createdAt: {
           gte: startOfDay,
           lt: endOfDay,
@@ -199,6 +200,7 @@ export class DispenseOrdersService {
       id: order.id,
       orderNumber: order.orderNumber,
       patientId: order.patientId,
+      patientName: order.admission.patient.name ?? "",
       admissionId: order.admissionId,
       dispensedAt: order.dispensedAt,
       notes: order.notes,
@@ -206,10 +208,10 @@ export class DispenseOrdersService {
       status: order.status,
       createdAt: order.createdAt,
       createdBy: order.createdBy,
-      type: order.admission?.type ?? null,
-      admissionNumber: order.admission?.admissionNumber ?? null,
-      admissionDate: order.admission?.admissionDate ?? null,
-      roomId: order.admission?.roomId ?? null,
+      type: order.admission.type ?? null,
+      admissionNumber: order.admission.admissionNumber ?? null,
+      admissionDate: order.admission.admissionDate ?? null,
+      roomId: order.admission.roomId ?? null,
     }));
 
     return PaginatedResponseDto.create(data, total, query);
@@ -234,6 +236,7 @@ export class DispenseOrdersService {
       id: order.id,
       orderNumber: order.orderNumber,
       patientId: order.patientId,
+      patientName: order.admission.patient.name ?? null,
       admissionId: order.admissionId,
       dispensedAt: order.dispensedAt,
       notes: order.notes,
@@ -354,7 +357,20 @@ export class DispenseOrdersService {
     );
 
     return this.prisma.$transaction(async (tx) => {
-      tx.dispenseOrderItem.deleteMany({
+      const updateOrderData: Partial<DispenseOrder> = {
+          updatedAt: new Date(),
+          updatedBy: userId,
+      };
+      if(dto.notes !== undefined) {
+        updateOrderData.notes = dto.notes;
+      }
+
+      await tx.dispenseOrder.update({
+        where: { id: orderId },
+        data: updateOrderData,
+      });
+
+      await tx.dispenseOrderItem.deleteMany({
         where: { dispenseOrderId: orderId },
       });
 
@@ -364,7 +380,6 @@ export class DispenseOrdersService {
           const item = createItemMap.get(product.id)!;
           return {
             drugId: product.id,
-            drugName: product.name,
             quantity: item.quantity,
             instructions: item.instructions,
             dispenseOrderId: order.id,

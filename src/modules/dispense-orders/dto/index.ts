@@ -71,6 +71,11 @@ export class UpdateDispenseOrderDto extends PartialType(
 export class AddDispenseOrderItemDto extends CreateDispenseOrderItemDto {}
 
 export class UpdateDispenseOrderItemDto {
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  notes?: string;
+
   @ApiProperty({ type: [CreateDispenseOrderItemDto] })
   @IsArray()
   @ValidateNested({ each: true })
@@ -81,7 +86,7 @@ export class UpdateDispenseOrderItemDto {
 export class CancelDispenseOrderDto {
   @ApiProperty()
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   reason: string;
 }
 

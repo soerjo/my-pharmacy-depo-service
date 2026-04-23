@@ -3,21 +3,15 @@ import {
   Get,
   Post,
   Put,
-  Patch,
   Param,
-  Delete,
   Body,
   Query,
   Headers,
-  HttpCode,
-  HttpStatus,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DispenseOrdersService } from './dispense-orders.service.js';
 import {
   CreateDispenseOrderDto,
-  UpdateDispenseOrderDto,
-  AddDispenseOrderItemDto,
   UpdateDispenseOrderItemDto,
   CancelDispenseOrderDto,
   DispenseOrderQueryDto,
@@ -125,7 +119,7 @@ export class DispenseOrdersController {
   //   return this.dispenseOrdersService.removeItem(id, itemId, organizationId);
   // }
 
-  @Patch(':id/prepare')
+  @Post(':id/prepare')
   @ApiOperation({
     summary: 'Start preparing dispense order (PENDING → PREPARING)',
   })
@@ -137,7 +131,7 @@ export class DispenseOrdersController {
     return this.dispenseOrdersService.startPreparation(id, organizationId, user.id);
   }
 
-  @Patch(':id/dispense')
+  @Post(':id/dispense')
   @ApiOperation({ summary: 'Dispense order (PREPARING → DISPENSED)' })
   dispense(
     @Param('id') id: string,
@@ -147,7 +141,7 @@ export class DispenseOrdersController {
     return this.dispenseOrdersService.dispense(id, organizationId, user.id);
   }
 
-  @Patch(':id/cancel')
+  @Post(':id/cancel')
   @ApiOperation({
     summary: 'Cancel dispense order (PENDING/PREPARING → CANCELLED)',
   })
