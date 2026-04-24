@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "DispenseOrder" ADD COLUMN     "orderDate" DATE NOT NULL DEFAULT CURRENT_TIMESTAMP;

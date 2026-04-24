@@ -120,6 +120,7 @@ model DispenseOrder {
   id            String              @id @default(uuid()) @db.Uuid
   orgId         String              @db.Uuid
   orderNumber   String
+  orderDate     DateTime            @default(now()) @db.Date
   patientId     String              @db.Uuid
   admissionId   String              @db.Uuid
   dispensedAt   DateTime?

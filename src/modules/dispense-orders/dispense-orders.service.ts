@@ -84,20 +84,14 @@ export class DispenseOrdersService {
     items: { orderBy: { createdAt: 'asc' } },
   } as const;
 
-  async findOneDispenseOrderThisDay(admissionId: string, organizationId: string) {
-    const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  async findOneDispenseOrderThisDay(admissionId: string, organizationId: string, date: Date = new Date()): Promise<DispenseOrder | null> {
 
     return this.prisma.dispenseOrder.findFirst({
       where: {
         orgId: organizationId,
         admissionId,
         status: { not: DispenseOrderStatus.CANCELLED },
-        createdAt: {
-          gte: startOfDay,
-          lt: endOfDay,
-        },
+        orderDate: date.toISOString(), // Compare only the date part
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -109,10 +103,11 @@ export class DispenseOrdersService {
     authToken: string,
     userId: string,
   ) {
+    const orderDate = dto.admissionDate ? new Date(dto.admissionDate) : new Date();
     const admission = await this.validateAdmission(dto.admissionId, organizationId);
-    const existingOrder = await this.findOneDispenseOrderThisDay(dto.admissionId, organizationId);
+    const existingOrder = await this.findOneDispenseOrderThisDay(dto.admissionId, organizationId, orderDate);
     if (existingOrder) {
-      throw new BadRequestException(`A dispense order for this admission already exists today with ID ${existingOrder.id}`);
+      throw new BadRequestException(`A dispense order for this admission already exists with ID ${existingOrder.id}`);
     }
 
     if (!dto.items || dto.items.length === 0) {
@@ -134,8 +129,9 @@ export class DispenseOrdersService {
           orderNumber,
           patientId: admission.patientId,
           admissionId: dto.admissionId,
-          notes: dto.notes,
+          notes: dto.notes ?? "",
           status: DispenseOrderStatus.PENDING,
+          orderDate: orderDate.toISOString(),
           createdBy: userId,
         },
       });
@@ -153,11 +149,6 @@ export class DispenseOrdersService {
           } as Prisma.DispenseOrderItemCreateManyInput;
         })
       });
-
-      // return tx.dispenseOrder.findFirst({
-      //   where: { id: order.id },
-      //   include: this.includeRelations,
-      // });
     })
   }
 
@@ -199,6 +190,7 @@ export class DispenseOrdersService {
     const data = rawData.map((order) => ({
       id: order.id,
       orderNumber: order.orderNumber,
+      orderDate: order.orderDate,
       patientId: order.patientId,
       patientName: order.admission.patient.name ?? "",
       admissionId: order.admissionId,

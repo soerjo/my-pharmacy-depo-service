@@ -11,6 +11,7 @@ import {
   Min,
   IsBoolean,
   IsDateString,
+  IsDate,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { PartialType, OmitType } from '@nestjs/swagger';
@@ -40,6 +41,11 @@ export class CreateDispenseOrderDto {
   @IsUUID()
   @IsNotEmpty()
   admissionId: string;
+
+  @ApiPropertyOptional({ description: 'Admission date (ISO 8601)' })
+  @IsDate()
+  @IsOptional()
+  admissionDate?: Date;
 
   @ApiPropertyOptional()
   @IsString()
