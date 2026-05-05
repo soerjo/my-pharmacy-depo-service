@@ -170,9 +170,15 @@ export class DispenseOrdersService {
       where.id = { in: query.ids };
     }
     if (query.startDate || query.endDate) {
-      where.createdAt = {
-        ...(query.startDate && { gte: new Date(query.startDate) }),
-        ...(query.endDate && { lt: new Date(query.endDate) }),
+      const startDate = query.startDate
+        ? new Date(new Date(query.startDate).setHours(0, 0, 0, 0))
+        : undefined;
+      const endDate = query.endDate
+        ? new Date(new Date(query.endDate).setHours(23, 59, 59, 999))
+        : undefined;
+      where.orderDate = {
+        ...(startDate && { gte: startDate }),
+        ...(endDate && { lte: endDate }),
       };
     }
 
