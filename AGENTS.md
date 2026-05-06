@@ -42,11 +42,11 @@
 
 PostgreSQL via Prisma v6 (`prisma/schema.prisma`). Schema defines:
 
-**Enums**: `Gender`, `AdmissionStatus`, `DispenseType`, `DispenseOrderStatus`, `BedStatus`
+**Enums**: `Gender`, `AdmissionStatus`, `AdmissionType`, `DispenseOrderStatus`, `BedStatus`
 
 **Models**: `Patient`, `Admission`, `RoomCategory`, `Room`, `DispenseOrder`, `DispenseOrderItem`
 
-Multi-tenant pattern: most models have an `orgId` field with `@@index([orgId])`. Exceptions: `RoomCategory` has no `orgId` (global lookup), `DispenseOrderItem` has none (scoped via parent `DispenseOrder`). `Room.orgId` is nullable (allows shared rooms). All models use `@id @default(uuid()) @db.Uuid`.
+Multi-tenant pattern: most models have an `orgId` field with `@@index([orgId])`. Exceptions: `RoomCategory` has no `orgId` (global lookup), `DispenseOrderItem` has none (scoped via parent `DispenseOrder`). `Room.orgId` is nullable (allows shared rooms). All models use `@id @default(uuid()) @db.Uuid`. `DispenseOrder` and `DispenseOrderItem` have `createdBy`/`updatedBy` audit fields (`String @db.Uuid`).
 
 ## Module Status
 
@@ -63,14 +63,11 @@ Current modules in `src/modules/`:
 
 **Stub / Incomplete**:
 
-| Module               | Issue                                                |
-| -------------------- | ---------------------------------------------------- |
-| `auth`               | Service exists but **all methods are commented out** |
-| `users`              | Controller only, **no service file**                 |
-| `organizations`      | Controller only, **no service file**                 |
-| `roles`              | Controller only, **no service file**                 |
-| `user-organizations` | Controller only, **no service file**                 |
-| `email`              | **Empty module** (`@Module({})`)                     |
+| Module  | Issue                                                    |
+| ------- | -------------------------------------------------------- |
+| `auth`  | Service + JwtStrategy exist but **all service methods are commented out** |
+| `users` | Empty module (`@Module({ controllers: [] })`), no service or controller files |
+| `email` | **Empty module** (`@Module({})`)                         |
 
 `health` module uses `@nestjs/terminus` — has controller + custom Prisma health indicator, no conventional service.
 
@@ -90,8 +87,8 @@ Current modules in `src/modules/`:
 - **Guards**: `JwtAuthGuard`, `RolesGuard` (reads required roles via Reflector, always returns `true` — stub)
 - **Filters**: `AllExceptionsFilter`
 - **Interceptors**: `ResponseTransformInterceptor`
-- **DTOs**: `PaginationDto`, `PaginatedResponseDto` in `src/common/dto/`
-- **Interfaces**: `AuthUser`, `JwtPayload`
+- **DTOs**: `PaginationDto` in `src/common/dto/`
+- **Interfaces**: `AuthUser` in `src/common/interfaces/`
 - **PrismaModule** at `src/prisma/` — provides `PrismaService` globally
 
 ## Environment Variables
@@ -118,7 +115,7 @@ Additional vars referenced in code but **not yet validated**: `JWT_REFRESH_SECRE
 - Only e2e test: `test/app.e2e-spec.ts` (health endpoint)
 - Jest config is in `jest.config.js` (root), **not** in `package.json` — the `jest` block in `package.json` is stale
 - `jest.config.js` has `moduleNameMapper` for `src/` prefix alias, `setupFilesAfterEnv` pointing to `test/test-setup.ts`, and `testTimeout: 30000`
-- `test/test-setup.ts` loads dotenv and sets env vars with **stale names** (e.g., `JWT_SECRET_KEY` instead of `JWT_ACCESS_SECRET`) — may need updating before tests pass
+- `test/test-setup.ts` uses **completely stale env var names** (e.g., `JWT_SECRET_KEY`, `DATABASE_HOST`/`DATABASE_PORT` instead of `JWT_ACCESS_SECRET`, `DATABASE_URL`) — must be rewritten to match `src/config/env.validation.ts` before tests can pass
 - E2E test enables `whitelist: true` on its own `ValidationPipe` (differs from `main.ts` where it's commented out), and does **not** apply `AllExceptionsFilter` or `ResponseTransformInterceptor`, so response shape differs from production
 
 ## Deployment

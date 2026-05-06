@@ -115,10 +115,9 @@ export class PatientsService {
     return this.prisma.patient.update({
       where: { id },
       data: {
+        ...(dto.mrn !== undefined && { mrn: dto.mrn }),
         ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.dateOfBirth !== undefined && {
-          dateOfBirth: new Date(dto.dateOfBirth),
-        }),
+        ...(dto.dateOfBirth !== undefined && { dateOfBirth: new Date(dto.dateOfBirth) }),
         ...(dto.gender !== undefined && { gender: dto.gender }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
         ...(dto.address !== undefined && { address: dto.address }),
