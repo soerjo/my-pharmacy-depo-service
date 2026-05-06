@@ -104,12 +104,12 @@ export class DispenseOrderQueryDto extends PaginationDto {
   @ApiPropertyOptional({ description: 'Filter from date (ISO 8601)' })
   @IsDateString()
   @IsOptional()
-  startDate?: string;
+  startDate?: string = new Date().toISOString().split('T')[0];
 
   @ApiPropertyOptional({ description: 'Filter to date (ISO 8601)' })
   @IsDateString()
   @IsOptional()
-  endDate?: string;
+  endDate?: string = new Date().toISOString().split('T')[0];
 
   @ApiPropertyOptional()
   @IsString()
@@ -126,4 +126,13 @@ export class DispenseOrderQueryDto extends PaginationDto {
   @IsArray()
   @IsOptional()
   ids?: string[];
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  @IsOptional()  
+  @Transform(({ value }) => {
+    return value === 'true' || value === true
+  })
+  isExport?: boolean = false;
+
 }

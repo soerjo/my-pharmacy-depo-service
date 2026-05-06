@@ -1,6 +1,5 @@
 import {
   Injectable,
-  NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -14,12 +13,12 @@ import {
 } from './dto/index.js';
 import {
   DispenseOrder,
-  DispenseOrderItem,
   DispenseOrderStatus,
   Prisma,
 } from '@prisma/client';
 import { PaginatedResponseDto } from '../../common/dto/pagination.dto.js';
 import { WarehouseService } from '../warehouse/warehouse.service.js';
+import { IGetDispenseOrderResponse } from './dispense-orders.interface.js';
 
 @Injectable()
 export class DispenseOrdersService {
@@ -176,7 +175,8 @@ export class DispenseOrdersService {
   async findAll(
     organizationId: string,
     query: DispenseOrderQueryDto,
-  ): Promise<PaginatedResponseDto<unknown>> {
+    authToken: string,
+  ): Promise<PaginatedResponseDto<IGetDispenseOrderResponse> | { data: IGetDispenseOrderResponse[] }> {
     const where: Record<string, unknown> = { orgId: organizationId };
 
     if (query.status) where.status = query.status;
@@ -216,18 +216,27 @@ export class DispenseOrdersService {
         where,
         include: this.includeRelations,
         orderBy: { orderDate: 'desc' },
-        skip: query.skip,
-        take: query.take,
+        ...(query.isExport ? {} : {
+          skip: query.skip,
+          take: query.take,
+        })
       }),
       this.prisma.dispenseOrder.count({ where }),
     ]);
 
-    const data = rawData.map((order) => ({
+    const productIds = new Set(rawData.flatMap(data => data.items.flatMap(item => item.drugId)));
+    const productDetailList = await this.warehouseService.getProductsByIds([...productIds], authToken);
+    const prodcutDetailMap = new Map(productDetailList.map(p => [p.id, p]));
+
+    const data = rawData.map((orderData) => {
+      const { admission, items, ...order } = orderData;
+      return {
+      ...order,
       id: order.id,
       orderNumber: order.orderNumber,
       orderDate: order.orderDate,
       patientId: order.patientId,
-      patientName: order.admission.patient.name ?? '',
+      patientName: admission.patient.name,
       admissionId: order.admissionId,
       dispensedAt: order.dispensedAt,
       notes: order.notes,
@@ -235,11 +244,28 @@ export class DispenseOrdersService {
       status: order.status,
       createdAt: order.createdAt,
       createdBy: order.createdBy,
-      type: order.admission.type ?? null,
-      admissionNumber: order.admission.admissionNumber ?? null,
-      admissionDate: order.admission.admissionDate ?? null,
-      roomId: order.admission.roomId ?? null,
-    }));
+      type: admission.type ?? null,
+      admissionNumber: admission.admissionNumber ?? null,
+      admissionDate: admission.admissionDate ?? null,
+      roomId: admission.roomId ?? null,
+      items: items.map((item) => {
+        const product = prodcutDetailMap.get(item.drugId);
+        return {
+          id: item.id,
+          drugId: product?.id,
+          drugName: product?.name,
+          quantity: item.quantity,
+          instructions: item.instructions,
+          baseUnitId: product?.baseUnitId,
+          baseUnitName: product?.baseUnitName,
+          baseUnitCode: product?.baseUnitCode,
+          baseUnitAbbreviation: product?.baseUnitAbbreviation,
+        };
+      }),
+
+    }}) as IGetDispenseOrderResponse[];
+    
+    if(query.isExport) return { data };
 
     return PaginatedResponseDto.create(data, total, query);
   }

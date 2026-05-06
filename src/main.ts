@@ -14,10 +14,10 @@ async function bootstrap() {
 
   app.useGlobalPipes(
     new ValidationPipe({
-      // whitelist: true,
-      forbidNonWhitelisted: true,
+      whitelist: true,
       transform: true,
-      transformOptions: { enableImplicitConversion: true },
+      // forbidNonWhitelisted: true,
+      // transformOptions: { enableImplicitConversion: true },
     }),
   );
 
