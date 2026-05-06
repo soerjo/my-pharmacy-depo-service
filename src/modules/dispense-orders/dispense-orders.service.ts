@@ -200,10 +200,10 @@ export class DispenseOrdersService {
     }
     if (query.startDate || query.endDate) {
       const startDate = query.startDate
-        ? new Date(new Date(query.startDate).setHours(0, 0, 0, 0))
+        ? new Date(query.startDate)
         : undefined;
       const endDate = query.endDate
-        ? new Date(new Date(query.endDate).setHours(23, 59, 59, 999))
+        ? new Date(query.endDate)
         : undefined;
       where.orderDate = {
         ...(startDate && { gte: startDate }),
