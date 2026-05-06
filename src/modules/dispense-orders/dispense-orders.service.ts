@@ -266,6 +266,7 @@ export class DispenseOrdersService {
     return {
       id: order.id,
       orderNumber: order.orderNumber,
+      orderDate: order.orderDate,
       patientId: order.patientId,
       patientName: order.admission.patient.name ?? null,
       admissionId: order.admissionId,
