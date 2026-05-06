@@ -215,7 +215,7 @@ export class DispenseOrdersService {
       this.prisma.dispenseOrder.findMany({
         where,
         include: this.includeRelations,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { orderDate: 'desc' },
         skip: query.skip,
         take: query.take,
       }),
