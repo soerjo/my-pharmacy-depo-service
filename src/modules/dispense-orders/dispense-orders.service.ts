@@ -251,6 +251,7 @@ export class DispenseOrdersService {
       items: items.map((item) => {
         const product = prodcutDetailMap.get(item.drugId);
         return {
+          ...product,
           id: item.id,
           drugId: product?.id,
           drugName: product?.name,
