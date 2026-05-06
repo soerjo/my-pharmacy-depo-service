@@ -12,10 +12,13 @@ import {
   CancelDispenseOrderDto,
   DispenseOrderQueryDto,
 } from './dto/index.js';
-import { DispenseOrder, DispenseOrderItem, DispenseOrderStatus, Prisma } from '@prisma/client';
 import {
-  PaginatedResponseDto,
-} from '../../common/dto/pagination.dto.js';
+  DispenseOrder,
+  DispenseOrderItem,
+  DispenseOrderStatus,
+  Prisma,
+} from '@prisma/client';
+import { PaginatedResponseDto } from '../../common/dto/pagination.dto.js';
 import { WarehouseService } from '../warehouse/warehouse.service.js';
 
 @Injectable()
@@ -66,7 +69,9 @@ export class DispenseOrdersService {
       include: { patient: true, room: true },
     });
     if (!admission) {
-      throw new BadRequestException(`Admission with id ${admissionId} not found`);
+      throw new BadRequestException(
+        `Admission with id ${admissionId} not found`,
+      );
     }
     return admission;
   }
@@ -84,8 +89,11 @@ export class DispenseOrdersService {
     items: { orderBy: { createdAt: 'asc' } },
   } as const;
 
-  async findOneDispenseOrderThisDay(admissionId: string, organizationId: string, date: Date = new Date()): Promise<DispenseOrder | null> {
-
+  async findOneDispenseOrderThisDay(
+    admissionId: string,
+    organizationId: string,
+    date: Date = new Date(),
+  ): Promise<DispenseOrder | null> {
     return this.prisma.dispenseOrder.findFirst({
       where: {
         orgId: organizationId,
@@ -103,11 +111,22 @@ export class DispenseOrdersService {
     authToken: string,
     userId: string,
   ) {
-    const orderDate = dto.admissionDate ? new Date(dto.admissionDate) : new Date();
-    const admission = await this.validateAdmission(dto.admissionId, organizationId);
-    const existingOrder = await this.findOneDispenseOrderThisDay(dto.admissionId, organizationId, orderDate);
+    const orderDate = dto.admissionDate
+      ? new Date(dto.admissionDate)
+      : new Date();
+    const admission = await this.validateAdmission(
+      dto.admissionId,
+      organizationId,
+    );
+    const existingOrder = await this.findOneDispenseOrderThisDay(
+      dto.admissionId,
+      organizationId,
+      orderDate,
+    );
     if (existingOrder) {
-      throw new BadRequestException(`A dispense order for this admission already exists with ID ${existingOrder.id}`);
+      throw new BadRequestException(
+        `A dispense order for this admission already exists with ID ${existingOrder.id}`,
+      );
     }
 
     if (!dto.items || dto.items.length === 0) {
@@ -129,14 +148,16 @@ export class DispenseOrdersService {
           orderNumber,
           patientId: admission.patientId,
           admissionId: dto.admissionId,
-          notes: dto.notes ?? "",
+          notes: dto.notes ?? '',
           status: DispenseOrderStatus.PENDING,
           orderDate: orderDate.toISOString(),
           createdBy: userId,
         },
       });
 
-      const createItemMap = new Map(dto.items.map((item) => [item.drugId, item]));
+      const createItemMap = new Map(
+        dto.items.map((item) => [item.drugId, item]),
+      );
       await tx.dispenseOrderItem.createMany({
         data: products.map((product) => {
           const item = createItemMap.get(product.id)!;
@@ -147,9 +168,9 @@ export class DispenseOrdersService {
             dispenseOrderId: order.id,
             createdBy: userId,
           } as Prisma.DispenseOrderItemCreateManyInput;
-        })
+        }),
       });
-    })
+    });
   }
 
   async findAll(
@@ -162,8 +183,16 @@ export class DispenseOrdersService {
     if (query.search) {
       where.OR = [
         { orderNumber: { contains: query.search, mode: 'insensitive' } },
-        { admission: { admissionNumber: { contains: query.search, mode: 'insensitive' } } },
-        { admission: { patient: { name: { contains: query.search, mode: 'insensitive' } } } },
+        {
+          admission: {
+            admissionNumber: { contains: query.search, mode: 'insensitive' },
+          },
+        },
+        {
+          admission: {
+            patient: { name: { contains: query.search, mode: 'insensitive' } },
+          },
+        },
       ];
     }
     if (query.ids && query.ids.length > 0) {
@@ -198,7 +227,7 @@ export class DispenseOrdersService {
       orderNumber: order.orderNumber,
       orderDate: order.orderDate,
       patientId: order.patientId,
-      patientName: order.admission.patient.name ?? "",
+      patientName: order.admission.patient.name ?? '',
       admissionId: order.admissionId,
       dispensedAt: order.dispensedAt,
       notes: order.notes,
@@ -214,16 +243,20 @@ export class DispenseOrdersService {
 
     return PaginatedResponseDto.create(data, total, query);
   }
-  
 
-  async getDispenseOrderById(id: string, organizationId: string, authToken: string) {
+  async getDispenseOrderById(
+    id: string,
+    organizationId: string,
+    authToken: string,
+  ) {
     const order = await this.findOne(id, organizationId);
-    const items = order.items?.map((item) => ({
-      id: item.id,
-      drugId: item.drugId,
-      quantity: item.quantity,
-      instructions: item.instructions,
-    })) ?? [];
+    const items =
+      order.items?.map((item) => ({
+        id: item.id,
+        drugId: item.drugId,
+        quantity: item.quantity,
+        instructions: item.instructions,
+      })) ?? [];
 
     const productDetailList = await this.warehouseService.getProductsByIds(
       items.map((item) => item.drugId),
@@ -262,7 +295,7 @@ export class DispenseOrdersService {
           baseUnitAbbreviation: product.baseUnitAbbreviation,
         };
       }),
-    }
+    };
   }
 
   async findOne(id: string, organizationId: string) {
@@ -286,7 +319,7 @@ export class DispenseOrdersService {
   ) {
     const order = await this.findOne(id, organizationId);
     this.assertEditable(order);
-    if(order.status !== DispenseOrderStatus.PENDING) {
+    if (order.status !== DispenseOrderStatus.PENDING) {
       throw new BadRequestException(
         `Cannot update order with status ${order.status}. Only PENDING orders can be updated.`,
       );
@@ -341,8 +374,11 @@ export class DispenseOrdersService {
   ) {
     const order = await this.findOne(orderId, organizationId);
 
-    const updateStatusValidation: DispenseOrderStatus[] = [DispenseOrderStatus.PENDING, DispenseOrderStatus.PREPARING];
-    if( order && !updateStatusValidation.includes(order.status)) {
+    const updateStatusValidation: DispenseOrderStatus[] = [
+      DispenseOrderStatus.PENDING,
+      DispenseOrderStatus.PREPARING,
+    ];
+    if (order && !updateStatusValidation.includes(order.status)) {
       throw new BadRequestException(
         `Cannot modify items of an order with status ${order.status}. Only PENDING or PREPARING orders can be edited.`,
       );
@@ -356,10 +392,10 @@ export class DispenseOrdersService {
 
     return this.prisma.$transaction(async (tx) => {
       const updateOrderData: Partial<DispenseOrder> = {
-          updatedAt: new Date(),
-          updatedBy: userId,
+        updatedAt: new Date(),
+        updatedBy: userId,
       };
-      if(dto.notes !== undefined) {
+      if (dto.notes !== undefined) {
         updateOrderData.notes = dto.notes;
       }
 
@@ -372,7 +408,9 @@ export class DispenseOrdersService {
         where: { dispenseOrderId: orderId },
       });
 
-      const createItemMap = new Map(dto.items.map((item) => [item.drugId, item]));
+      const createItemMap = new Map(
+        dto.items.map((item) => [item.drugId, item]),
+      );
       await tx.dispenseOrderItem.createMany({
         data: products.map((product) => {
           const item = createItemMap.get(product.id)!;
@@ -383,7 +421,7 @@ export class DispenseOrdersService {
             dispenseOrderId: order.id,
             createdBy: userId,
           } as Prisma.DispenseOrderItemCreateManyInput;
-        })
+        }),
       });
 
       return tx.dispenseOrder.findFirst({
@@ -391,7 +429,6 @@ export class DispenseOrdersService {
         include: this.includeRelations,
       });
     });
-
   }
 
   async removeItem(orderId: string, itemId: string, organizationId: string) {
@@ -413,7 +450,11 @@ export class DispenseOrdersService {
     });
   }
 
-  async startPreparation(orderId: string, organizationId: string, userId: string) {
+  async startPreparation(
+    orderId: string,
+    organizationId: string,
+    userId: string,
+  ) {
     const order = await this.findOne(orderId, organizationId);
 
     if (order.status !== DispenseOrderStatus.PENDING) {
@@ -424,7 +465,11 @@ export class DispenseOrdersService {
 
     return this.prisma.dispenseOrder.update({
       where: { id: orderId },
-      data: { status: DispenseOrderStatus.PREPARING, updatedBy: userId, updatedAt: new Date() },
+      data: {
+        status: DispenseOrderStatus.PREPARING,
+        updatedBy: userId,
+        updatedAt: new Date(),
+      },
       // include: this.includeRelations,
     });
   }

@@ -62,7 +62,6 @@ export class CreateDispenseOrderDto {
 export class UpdateDispenseOrderDto extends PartialType(
   OmitType(CreateDispenseOrderDto, [] as const),
 ) {
-
   @ApiProperty({ enum: DispenseOrderStatus })
   @IsOptional()
   @IsEnum(DispenseOrderStatus)

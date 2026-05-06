@@ -48,20 +48,21 @@ export class DispenseOrdersController {
     @OrganizationId() organizationId: string,
     @Query() query: DispenseOrderQueryDto,
   ) {
-    return this.dispenseOrdersService.findAll(
-      organizationId,
-      query,
-    );
+    return this.dispenseOrdersService.findAll(organizationId, query);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get dispense order by ID' })
   findOne(
-    @Param('id') id: string, 
+    @Param('id') id: string,
     @OrganizationId() organizationId: string,
     @Headers('authorization') authorization: string,
   ) {
-    return this.dispenseOrdersService.getDispenseOrderById(id, organizationId, authorization);
+    return this.dispenseOrdersService.getDispenseOrderById(
+      id,
+      organizationId,
+      authorization,
+    );
   }
 
   @Put(':id')
@@ -73,7 +74,13 @@ export class DispenseOrdersController {
     @Headers('authorization') authorization: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.dispenseOrdersService.updateItems(id, dto, organizationId, authorization, user.id);
+    return this.dispenseOrdersService.updateItems(
+      id,
+      dto,
+      organizationId,
+      authorization,
+      user.id,
+    );
   }
 
   // @Post(':id/items')
@@ -128,7 +135,11 @@ export class DispenseOrdersController {
     @OrganizationId() organizationId: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.dispenseOrdersService.startPreparation(id, organizationId, user.id);
+    return this.dispenseOrdersService.startPreparation(
+      id,
+      organizationId,
+      user.id,
+    );
   }
 
   @Post(':id/dispense')

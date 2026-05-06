@@ -107,10 +107,7 @@ export class RoomsService {
     search?: string,
   ): Promise<PaginatedResponseDto<unknown>> {
     const orgFilter: Prisma.RoomWhereInput = {
-      OR: [
-        { orgId: { equals: null } },
-        { orgId: { equals: organizationId } },
-      ],
+      OR: [{ orgId: { equals: null } }, { orgId: { equals: organizationId } }],
     };
 
     const searchFilter: Prisma.RoomWhereInput | null = search

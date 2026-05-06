@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { WinstonModule } from 'nest-winston';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -15,6 +15,7 @@ import { DispenseOrdersModule } from './modules/dispense-orders/dispense-orders.
 import { WarehouseModule } from './modules/warehouse/warehouse.module.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
+import { CustomThrottlerGuard } from './common/guards/throttler.guard.js';
 import { loggerConfig } from './config/logger.config.js';
 import { validate } from './config/env.validation.js';
 
@@ -35,7 +36,7 @@ import { validate } from './config/env.validation.js';
     WarehouseModule,
   ],
   providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: CustomThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

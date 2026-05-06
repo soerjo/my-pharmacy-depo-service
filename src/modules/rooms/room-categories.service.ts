@@ -24,7 +24,6 @@ export class RoomCategoriesService {
     isActive?: boolean,
     search?: string,
   ): Promise<PaginatedResponseDto<unknown>> {
-
     const where: Prisma.RoomCategoryWhereInput = {
       active: isActive,
       OR: search
@@ -33,7 +32,7 @@ export class RoomCategoriesService {
             { description: { contains: search, mode: 'insensitive' } },
           ]
         : undefined,
-    }
+    };
 
     const [data, total] = await Promise.all([
       this.prisma.roomCategory.findMany({
@@ -52,7 +51,7 @@ export class RoomCategoriesService {
 
   async findOne(id: string, organizationId: string) {
     const category = await this.prisma.roomCategory.findFirst({
-      where: { id},
+      where: { id },
     });
 
     if (!category) {
