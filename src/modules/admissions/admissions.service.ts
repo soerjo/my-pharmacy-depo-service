@@ -1,11 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import {
   CreateAdmissionDto,
   UpdateAdmissionDto,
   QueryAdmissionDto,
 } from './dto/index.js';
-import { AdmissionStatus } from '@prisma/client';
+import { $Enums, AdmissionStatus } from '@prisma/client';
 import {
   PaginationDto,
   PaginatedResponseDto,
@@ -60,6 +60,11 @@ export class AdmissionsService {
         throw new NotFoundException(`Room with id ${dto.roomId} not found`);
       }
     }
+
+    const activeAdmissionPatient = await this.prisma.admission.findFirst({
+      where: { patientId: dto.patientId, status: $Enums.AdmissionStatus.ADMITTED }
+    })
+    if(activeAdmissionPatient) throw new BadRequestException("Patient alyread have admission active: " + activeAdmissionPatient.admissionNumber);
 
     const admission = await this.prisma.admission.create({
       data: {
