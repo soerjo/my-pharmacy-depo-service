@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import {
   CreateAdmissionDto,
@@ -62,9 +66,16 @@ export class AdmissionsService {
     }
 
     const activeAdmissionPatient = await this.prisma.admission.findFirst({
-      where: { patientId: dto.patientId, status: $Enums.AdmissionStatus.ADMITTED }
-    })
-    if(activeAdmissionPatient) throw new BadRequestException("Patient alyread have admission active: " + activeAdmissionPatient.admissionNumber);
+      where: {
+        patientId: dto.patientId,
+        status: $Enums.AdmissionStatus.ADMITTED,
+      },
+    });
+    if (activeAdmissionPatient)
+      throw new BadRequestException(
+        'Patient alyread have admission active: ' +
+          activeAdmissionPatient.admissionNumber,
+      );
 
     const admission = await this.prisma.admission.create({
       data: {

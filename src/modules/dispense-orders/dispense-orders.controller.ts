@@ -49,7 +49,11 @@ export class DispenseOrdersController {
     @Query() query: DispenseOrderQueryDto,
     @Headers('authorization') authorization: string,
   ) {
-    return this.dispenseOrdersService.findAll(organizationId, query, authorization);
+    return this.dispenseOrdersService.findAll(
+      organizationId,
+      query,
+      authorization,
+    );
   }
 
   @Get(':id')

@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import {
   CreateDispenseOrderDto,
@@ -11,11 +8,7 @@ import {
   CancelDispenseOrderDto,
   DispenseOrderQueryDto,
 } from './dto/index.js';
-import {
-  DispenseOrder,
-  DispenseOrderStatus,
-  Prisma,
-} from '@prisma/client';
+import { DispenseOrder, DispenseOrderStatus, Prisma } from '@prisma/client';
 import { PaginatedResponseDto } from '../../common/dto/pagination.dto.js';
 import { WarehouseService } from '../warehouse/warehouse.service.js';
 import { IGetDispenseOrderResponse } from './dispense-orders.interface.js';
@@ -98,7 +91,7 @@ export class DispenseOrdersService {
         orgId: organizationId,
         admissionId,
         status: { not: DispenseOrderStatus.CANCELLED },
-        orderDate: date.toISOString(), // Compare only the date part
+        orderDate: date.toISOString().split('T')[0],
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -169,6 +162,11 @@ export class DispenseOrdersService {
           } as Prisma.DispenseOrderItemCreateManyInput;
         }),
       });
+
+      return tx.dispenseOrder.findFirst({
+        where: { id: order.id },
+        include: this.includeRelations,
+      });
     });
   }
 
@@ -176,7 +174,10 @@ export class DispenseOrdersService {
     organizationId: string,
     query: DispenseOrderQueryDto,
     authToken: string,
-  ): Promise<PaginatedResponseDto<IGetDispenseOrderResponse> | { data: IGetDispenseOrderResponse[] }> {
+  ): Promise<
+    | PaginatedResponseDto<IGetDispenseOrderResponse>
+    | { data: IGetDispenseOrderResponse[] }
+  > {
     const where: Record<string, unknown> = { orgId: organizationId };
 
     if (query.status) where.status = query.status;
@@ -199,12 +200,8 @@ export class DispenseOrdersService {
       where.id = { in: query.ids };
     }
     if (query.startDate || query.endDate) {
-      const startDate = query.startDate
-        ? new Date(query.startDate)
-        : undefined;
-      const endDate = query.endDate
-        ? new Date(query.endDate)
-        : undefined;
+      const startDate = query.startDate ? new Date(query.startDate) : undefined;
+      const endDate = query.endDate ? new Date(query.endDate) : undefined;
       where.orderDate = {
         ...(startDate && { gte: startDate }),
         ...(endDate && { lte: endDate }),
@@ -216,57 +213,65 @@ export class DispenseOrdersService {
         where,
         include: this.includeRelations,
         orderBy: { orderDate: 'desc' },
-        ...(query.isExport ? {} : {
-          skip: query.skip,
-          take: query.take,
-        })
+        ...(query.isExport
+          ? {}
+          : {
+              skip: query.skip,
+              take: query.take,
+            }),
       }),
       this.prisma.dispenseOrder.count({ where }),
     ]);
 
-    const productIds = new Set(rawData.flatMap(data => data.items.flatMap(item => item.drugId)));
-    const productDetailList = await this.warehouseService.getProductsByIds([...productIds], authToken);
-    const prodcutDetailMap = new Map(productDetailList.map(p => [p.id, p]));
+    const productIds = new Set(
+      rawData.flatMap((data) => data.items.flatMap((item) => item.drugId)),
+    );
+    const productDetailList = await this.warehouseService.getProductsByIds(
+      [...productIds],
+      authToken,
+    );
+    const productDetailMap = new Map(productDetailList.map((p) => [p.id, p]));
 
     const data = rawData.map((orderData) => {
       const { admission, items, ...order } = orderData;
       return {
-      ...order,
-      id: order.id,
-      orderNumber: order.orderNumber,
-      orderDate: order.orderDate,
-      patientId: order.patientId,
-      patientName: admission.patient.name,
-      admissionId: order.admissionId,
-      dispensedAt: order.dispensedAt,
-      notes: order.notes,
-      cancelReason: order.cancelReason,
-      status: order.status,
-      createdAt: order.createdAt,
-      createdBy: order.createdBy,
-      type: admission.type ?? null,
-      admissionNumber: admission.admissionNumber ?? null,
-      admissionDate: admission.admissionDate ?? null,
-      roomId: admission.roomId ?? null,
-      items: items.map((item) => {
-        const product = prodcutDetailMap.get(item.drugId);
-        return {
-          ...product,
-          id: item.id,
-          drugId: product?.id,
-          drugName: product?.name,
-          quantity: item.quantity,
-          instructions: item.instructions,
-          baseUnitId: product?.baseUnitId,
-          baseUnitName: product?.baseUnitName,
-          baseUnitCode: product?.baseUnitCode,
-          baseUnitAbbreviation: product?.baseUnitAbbreviation,
-        };
-      }),
+        ...order,
+        id: order.id,
+        orderNumber: order.orderNumber,
+        orderDate: order.orderDate,
+        patientId: order.patientId,
+        patientName: admission.patient.name,
+        mrn: admission.patient.mrn,
+        admissionId: order.admissionId,
+        dispensedAt: order.dispensedAt,
+        notes: order.notes,
+        cancelReason: order.cancelReason,
+        status: order.status,
+        createdAt: order.createdAt,
+        createdBy: order.createdBy,
+        type: admission.type ?? null,
+        admissionNumber: admission.admissionNumber ?? null,
+        admissionDate: admission.admissionDate ?? null,
+        roomId: admission.roomId ?? null,
+        items: items.map((item) => {
+          const product = productDetailMap.get(item.drugId);
+          return {
+            ...product,
+            id: item.id,
+            drugId: product?.id,
+            drugName: product?.name,
+            quantity: item.quantity,
+            instructions: item.instructions,
+            baseUnitId: product?.baseUnitId,
+            baseUnitName: product?.baseUnitName,
+            baseUnitCode: product?.baseUnitCode,
+            baseUnitAbbreviation: product?.baseUnitAbbreviation,
+          };
+        }),
+      };
+    }) as IGetDispenseOrderResponse[];
 
-    }}) as IGetDispenseOrderResponse[];
-    
-    if(query.isExport) return { data };
+    if (query.isExport) return { data };
 
     return PaginatedResponseDto.create(data, total, query);
   }
@@ -347,11 +352,6 @@ export class DispenseOrdersService {
   ) {
     const order = await this.findOne(id, organizationId);
     this.assertEditable(order);
-    if (order.status !== DispenseOrderStatus.PENDING) {
-      throw new BadRequestException(
-        `Cannot update order with status ${order.status}. Only PENDING orders can be updated.`,
-      );
-    }
 
     const updateData: Partial<DispenseOrder> = {};
     updateData.updatedAt = new Date();
@@ -381,6 +381,9 @@ export class DispenseOrdersService {
       dto.drugId,
       authToken,
     );
+    if (!product) {
+      throw new BadRequestException(`Drug with id ${dto.drugId} not found`);
+    }
 
     return this.prisma.dispenseOrderItem.create({
       data: {
@@ -549,7 +552,6 @@ export class DispenseOrdersService {
       data: {
         status: DispenseOrderStatus.CANCELLED,
         cancelReason: dto.reason,
-        // cancelledAt: new Date(),
         updatedBy: userId,
       },
       include: this.includeRelations,

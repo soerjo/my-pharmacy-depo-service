@@ -129,10 +129,9 @@ export class DispenseOrderQueryDto extends PaginationDto {
 
   @ApiPropertyOptional()
   @IsBoolean()
-  @IsOptional()  
+  @IsOptional()
   @Transform(({ value }) => {
-    return value === 'true' || value === true
+    return value === 'true' || value === true;
   })
   isExport?: boolean = false;
-
 }
