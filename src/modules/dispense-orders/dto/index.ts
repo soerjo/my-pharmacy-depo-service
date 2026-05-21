@@ -42,10 +42,10 @@ export class CreateDispenseOrderDto {
   @IsNotEmpty()
   admissionId: string;
 
-  @ApiPropertyOptional({ description: 'Admission date (ISO 8601)' })
-  @IsDate()
+  @ApiPropertyOptional({ description: 'Order date is date string' })
+  @IsDateString()
   @IsOptional()
-  admissionDate?: Date;
+  orderDate?: string;
 
   @ApiPropertyOptional()
   @IsString()
@@ -80,6 +80,11 @@ export class UpdateDispenseOrderItemDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'Order date is date string' })
+  @IsDateString()
+  @IsOptional()
+  orderDate?: string;
 
   @ApiProperty({ type: [CreateDispenseOrderItemDto] })
   @IsArray()

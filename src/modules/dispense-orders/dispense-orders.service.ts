@@ -91,7 +91,7 @@ export class DispenseOrdersService {
         orgId: organizationId,
         admissionId,
         status: { not: DispenseOrderStatus.CANCELLED },
-        orderDate: date.toISOString().split('T')[0],
+        orderDate: date,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -103,9 +103,7 @@ export class DispenseOrdersService {
     authToken: string,
     userId: string,
   ) {
-    const orderDate = dto.admissionDate
-      ? new Date(dto.admissionDate)
-      : new Date();
+    const orderDate = dto.orderDate ? new Date(dto.orderDate) : new Date();
     const admission = await this.validateAdmission(
       dto.admissionId,
       organizationId,
@@ -428,6 +426,9 @@ export class DispenseOrdersService {
       };
       if (dto.notes !== undefined) {
         updateOrderData.notes = dto.notes;
+      }
+      if (dto.orderDate !== undefined) {
+        updateOrderData.orderDate = new Date(dto.orderDate);
       }
 
       await tx.dispenseOrder.update({
